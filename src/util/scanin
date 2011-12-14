@@ -1,0 +1,37 @@
+#!/usr/bin/env python
+import sys
+import os
+import re
+from numpy import arange
+from optparse import OptionParser
+
+'''Parse options.'''
+parser = OptionParser(usage='%prog [OPTION] INPUT_TEMPLATE FIRST:STEP:LAST\nRun fd3d for input files generated from INPUT_TEMPLATE.tmi for $scanvar$=FIRST:STEP:LAST.')
+parser.add_option('-n', default=1, type='int', help='number of processors')
+(options, args) = parser.parse_args()
+
+'''Specify file name (with .py) in ../in/ directory.'''
+name0 = args[0]
+ext_in = '.py'
+ext_tmi = '.tmi'
+
+'''Specify frequency range, and step size of interest.'''
+range = args[1].split(':');  # format of range is first:step:last
+first = float(range[0])
+step = float(range[1])
+last = float(range[2])
+last += step
+vars = arange(first, last, step).tolist()
+pattern_var = re.compile('\$scanvar\$')
+pattern_dp = re.compile('\.')  # decimal point
+
+file_tmi = open(name0 + ext_tmi,'r')
+for var in vars:
+	name = name0 + '_' + re.sub(pattern_dp, '_', str(var))
+	file_in = open(name + ext_in, 'w')
+	file_tmi.seek(0)
+	for line in file_tmi:
+		file_in.write(re.sub(pattern_var, str(var), line))
+	file_in.close()
+	os.system('mpirun -np ' + str(options.n) + ' fd3d -i ' + name)
+file_tmi.close()

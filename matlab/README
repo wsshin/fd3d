@@ -1,0 +1,34 @@
+# Setup 
+To run example MATLAB scripts in project_example/, the user should create startup.m file in MATLAB's start-up directory and append a few lines depending on the default unix shell of your system.
+
+- If you run MATLAB on the system where FD3D is installed, append the following lines in startup.m.
+For csh
+-------------------------------------------------------
+[~, FD3D_ROOT] = system('source ~/.fd3d;echo $FD3D_ROOT');
+addpath(strcat(FD3D_ROOT, '/matlab'));
+
+[~, PETSC_DIR] = system('source ~/.csh;echo $PETSC_DIR');
+addpath(strcat(PETSC_DIR, '/bin/matlab'));
+-------------------------------------------------------
+
+For bash
+-------------------------------------------------------
+[~, FD3D_ROOT] = system('source ~/.fd3d;echo $FD3D_ROOT');
+addpath(strcat(FD3D_ROOT, '/matlab'));
+
+[~, PETSC_DIR] = system('source ~/.bash_profile;echo $PETSC_DIR');
+addpath(strcat(PETSC_DIR, '/bin/matlab'));
+-------------------------------------------------------
+
+
+- If you run MATLAB on the system where FD3D is NOT installed, you first need to copy $FD3D_ROOT/matlab/ to your system from the system where FD3D is installed.  Then append the following line in startup.m.
+
+addpath(<path to the copied $FD3D_ROOT/matlab directory>);
+
+You can also choose to copy $PETSC_DIR/bin/matlab/ directory to your system from the system where FD3D is installed, and append the following line in startup.m.
+
+addpath(<path to the copied $PETSC_DIR/bin/matlab directory>);
+
+, but it is optional.
+
+The above instruction has not been tested for MATLAB running on MS Windows and FD3D installed on Cygwin; you may modify the above lines in startup.m appropriately for MS Windows.

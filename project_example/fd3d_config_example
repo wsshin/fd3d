@@ -1,0 +1,36 @@
+### 1. Rename this file to fd3d_config.
+### 2. Uncomment appropriate lines to control the behavior of fd3d.
+### The scope of fd3d_config depends on the location of the file as follows.
+### - (location): (scope)
+### - individual project directory: the project directory
+### - the parent directory of individual project directories: all project directories in the directory
+### - $FD3D_ROOT: any project directories
+### fd3d_config with a narrower scope overrides the one with a wider scope.
+### For example, if you put fd3d_config in an individual project directory, then it ignores all settings described in $FD3D_ROOT/fd3d_config.
+
+
+#-fd3d_output_mat_and_vec  # changed from -fd3d_output_A_and_b
+#-fd3d_eigen
+#-fd3d_take_snapshots 100
+#-fd3d_output_relres
+
+#-fd3d_x_type H
+#-fd3d_add_conteq 1
+#-fd3d_pml scpml
+#-fd3d_pml upml
+#-fd3d_krylov qmr
+#-fd3d_pc jacobi
+#-fd3d_pc sparam
+#-fd3d_pc eps
+
+#-fd3d_use_ksp
+#-ksp_type bicg
+#-ksp_type cg
+#-ksp_cg_type symmetric
+#-ksp_monitor_cancel
+#-ksp_monitor
+
+
+### To use a direct solver, enable -fd3d_use_ksp and the following lines.
+#-ksp_type preonly
+#-pc_type redundant

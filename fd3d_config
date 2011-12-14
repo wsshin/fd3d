@@ -1,0 +1,83 @@
+-fd3d_verbose 2
+#-fd3d_eigen
+#-fd3d_singular
+#-fd3d_output_A_and_b
+#-fd3d_x_type H
+#-fd3d_add_conteq
+-fd3d_pml scpml
+#-fd3d_pml upml
+#-fd3d_symmetric
+-fd3d_krylov bicg
+#-fd3d_krylov qmr
+#-fd3d_use_ksp
+#-fd3d_pml upml
+#-fd3d_pc jacobi
+#-fd3d_pc sparam
+#-fd3d_pc eps
+#-ksp_compute_eigenvalues
+#-ksp_monitor_cancel
+#-ksp_monitor
+#-ksp_monitor_singular_value
+#-ksp_type qmr
+#-ksp_type cgs
+#-ksp_type ibcgs
+#-ksp_type bicg
+#-ksp_type cg
+#-ksp_cg_type symmetric
+#-ksp_type bcgsl
+#-ksp_bcgsl_ell 4
+#-ksp_type gmres
+#-ksp_gmres_restart 1600
+#-ksp_gmres_restart 150
+#-ksp_gmres_modifiedgramschmidt
+#-ksp_lgmres_restart 100
+#-ksp_lgmres_constant 50
+#-pc_type none
+#-pc_type sor
+#-pc_type redundant  # direct solver
+#-pc_redundant_number 1
+#-ksp_initial_guess_nonzero 1
+#-ksp_type preonly
+#-pc_type lu
+#-pc_factor_mat_solver_package mumps
+
+## SLEPc: EPS
+#-st_type sinvert
+#-st_type shift
+#-st_shift -9.4864e-4
+#-st_ksp_type cg
+#-st_ksp_cg_type symmetric
+#-st_ksp_type gmres
+#-st_ksp_rtol 1e-10
+#-st_ksp_monitor
+#-st_mat_mode shell
+#-eps_type gd
+#-eps_target_magnitude
+#-eps_target 9.4864e-04
+#-eps_monitor
+#-eps_harmonic
+#-eps_nev 1
+#-eps_tol 1e-7
+#-eps_ncv 60
+
+## SLEPc: SVD
+#-svd_monitor_all
+#-svd_monitor
+#-svd_eps_monitor
+#-svd_monitor_converged
+#-svd_type cyclic
+#-svd_cyclic_explicitmatrix
+#-svd_st_type sinvert
+#-svd_eps_target 0.0
+#-svd_st_ksp_type preonly
+#-svd_st_pc_type lu
+#-svd_st_pc_type redundant
+#-svd_st_pc_factor_nonzeros_along_ diagonal
+#-svd_st_pc_factor_shift_nonzero 1e-10
+#-svd_st_pc_factor_mat_solver_package mumps
+#-svd_nsv 1
+#-svd_ncv 1
+#-svd_smallest
+#-svd_tol 1e-20
+#-svd_max_it 10000
+

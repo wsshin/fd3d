@@ -1,0 +1,105 @@
+[System Requirements]
+- Operating System
+UNIX clones such as LINUX and Mac OS X.  MS Windows is not supported.
+
+- PETSc (required)
+http://www.mcs.anl.gov/petsc/
+
+- Python (required)
+http://www.python.org/
+Most standard linux distribution these days include Python programming environment as a default.
+
+- Gnuplot, Gnuplot.py (optional)
+http://www.gnuplot.info/
+http://gnuplot-py.sourceforge.net/
+
+- MATLAB (optional)
+MATLAB is not an essential part for running FD3D, but FD3D is equipped with many useful MATLAB scripts for analyzing and visualizing the output of FD3D.  If you do not have MATLAB, you can examine the simulation results with other programs that can read binary data.
+
+
+[Installation Instruction]
+You can skip Step -1 and 0 if this is your first time installing FD3D.
+
+-1. Back up your old fd3d/stable directory.
+First, log on to the system where you run FD3D, and execute the following commend:
+cp -rf $HOME/fd3d $HOME/fd3d_old
+
+This will create fd3d_old/ in your home directory.
+
+
+0. Update FD3D package.
+Execute the following commands:
+cd $HOME/fd3d/stable
+svn update
+
+Then, svn will show the names of files and directories being updated.
+
+
+1.  Assign FD3D_ROOT environment variable.
+You have to let FD3D know its install location via an environment variable named FD3D_ROOT.
+
+- for csh (e.g. Abe)
+Open $HOME/.fd3d file with your favorite text editor to append:
+setenv FD3D_ROOT $HOME/fd3d/stable
+
+Then open $HOME/.cshrc file with your favorite text editor to append:
+source $HOME/.fd3d
+setenv PATH $PATH:$FD3D_ROOT/bin
+
+- for bash (e.g. Mac OS X)
+Open $HOME/.fd3d file with your favorite text editor to append:
+setenv FD3D_ROOT $HOME/fd3d/stable
+
+Then open $HOME/.bash_profile file with your favorite text editor to append:
+source $HOME/.fd3d
+export PATH=$PATH:$FD3D_ROOT/bin
+
+
+2. Relogin and rebuild.
+Relogin to the system to make the environment variable effective.  You can also do this by executing:
+source $HOME/.cshrc
+
+or:
+source $HOME/.bash_profile
+
+depending on what you did in Step 1. 
+
+
+3. Build FD3D.
+Move to src/ directory by:
+cd $FD3D_ROOT/src
+
+(If this does not place you in src/ directory, Step 1, 2 are not done correctly.)
+
+Now, copy an appropriate makefile in src/makefiles/ directory to src/ directory by:
+- on LINUX
+cp makefiles/makefile.linux makefile
+
+- on Mac OS X 10.6
+cp makefiles/makefile.macosx makefile
+
+Edit src/makefile appropriately according to your system settings.
+
+Finally, build fd3d by:
+make
+
+
+[Test Instruction]
+1. Copy a sample project directory.
+Execute:
+cp $FD3D_ROOT/project_example/plane_wave $HOME/directory_of_your_choice
+
+2. Go to the copied project directory.
+Execute:
+cd $HOME/directory_of_your_choice
+
+3. Test the integrity of the sample input file.
+Execute:
+testinput plane_normal.py
+
+4. Test FD3D
+Execute:
+fd3d -i plane_normal
+Make sure that you do not put .py at the end.
+
+If the program runs without errors, your FD3D is installed correctly!  You can test other sample projects in $FD3D_ROOT/project_example/ as well.

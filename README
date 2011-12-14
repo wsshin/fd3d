@@ -1,0 +1,55 @@
+# Directory structure
+The FD3D root directory consists of the following subdirectories:
+- bin/
+This directory will contain executables of the FD3D program and other utilities once they are built from the source codes in src/.  The main executable is fd3d.  To use these binaries, the path to this directory should be added to user's PATH evironment variable as instructed in INSTALL.
+
+- material/
+This directory contains experimentally measured complex refractive indices N = n - i k of a few materials as functions of wavelength.  Subdirectories in material/ refer to the sources of the data.  The data are stored in MATLAB's .mat format, and MATLAB scripts for generating the .mat files are also included.
+
+- matlab/
+This directory contains various MATLAB scripts for handling the outputs of fd3d.  The supported functions include:
+* Poynting vector calculation 
+* 2D and 3D visualization of the E and H fields
+etc.
+
+- project_example/
+This directory contains example procject directories.  Each subdirectory could contain:
+* input files (.py) for fd3d
+* batch job scripts (.job) for fd3d
+* template input file (.tmi) to generate a series of input files with a varying parameter
+* template job file (.tmj) to generate a series of job files with a varying parameter
+* MATLAB script (.m) for visualization of the E and H fields
+etc.  The subdirectories in projec_example/ can be copied to anywhere.
+
+- src/
+This directory contains the source codes and makefiles to build executables in bin/.
+
+
+# Workflow
+The general workflow to simulate EM wave propagation is described as follows.
+
+- Create a project directory.
+
+- Create an input file (.py).
+An input file describes the EM media and wave sources in the simulation domain.  You can copy project_example/template/template.py and fill the necessary lines or modify other input files of the example projcets in project_example/.
+
+- Test the integrity of the input file.
+You can run a series of tests on the input file by executing
+	testinput INPUT_NAME.py
+in the project directory.  (At this point, $FD3D_ROOT/bin should be already added to PATH so that bin/testinput is executable anywhere.)  Most of errors in running fd3d are syntax errors in input files, so make sure to verify the input file this way.  Also, execute
+	testinput --help
+to get information about various option flags of testinput.
+
+- Run fd3d.  
+For a single processor, execute
+	fd3d -i INPUT_NAME
+For multiple processors, execute
+	mpirun -n N fd3d -i INPUT_NAME
+where N is the number of processors.  Note that INPUT_NAME is without the file name extension ".py".
+Instead of running fd3d interactively, you can submit a batch job script if your system runs TORQUE Resource Manager.  Some projects in project_example/ contains example batch job scripts (.job).  Refer to the user guide of your system for more detail about writing a batch job script.
+
+- Check the standard output.
+You should check stdout to see if fd3d has run successfully.
+
+- Examine the solution.
+The solution of the frequency-domain Maxwell's equations is in .E and .H files, which contain the E field and H field, respectively.  The solution in these files can be visualized by using the MATLAB scripts in matlab/.  To use the scripts, see MATLAB/README.

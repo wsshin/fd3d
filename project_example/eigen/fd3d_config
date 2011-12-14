@@ -1,0 +1,15 @@
+-fd3d_output_mat_and_vec  # changed from -fd3d_output_A_and_b
+#-fd3d_x_type H
+#-fd3d_add_conteq
+#-fd3d_pml scpml
+#-fd3d_pml upml
+#-fd3d_krylov qmr
+#-fd3d_pc jacobi
+#-fd3d_pc sparam
+-fd3d_pc eps
+#-fd3d_use_ksp
+#-ksp_type bicg
+#-ksp_type cg
+#-ksp_cg_type symmetric
+#-ksp_monitor_cancel
+#-ksp_monitor

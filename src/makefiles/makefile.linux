@@ -1,0 +1,19 @@
+DEBUG = 0
+USE_SLEPC = 0
+ifeq (${DEBUG}, 0)
+	# e.g., PETSC_ARCH = abe-intel10-complex-opt
+	PETSC_ARCH = 
+else
+	# e.g., PETSC_ARCH = abe-intel10-complex-debug
+	PETSC_ARCH = 
+endif
+
+# e.g., 
+# PYTHON_INCLUDE_DIR = -I/usr/local/Python-2.5.2/include/python2.5
+# PYTHON_LIB_DIR = -L/usr/local/Python-2.5.2/lib/python2.5/config
+# PYTHON_LIB = -lpython2.5 -lutil -Xlinker -export-dynamic
+PYTHON_INCLUDE_DIR = 
+PYTHON_LIB_DIR = 
+PYTHON_LIB = -lutil -Xlinker -export-dynamic
+
+include ${FD3D_ROOT}/src/makefiles/makefile_base
