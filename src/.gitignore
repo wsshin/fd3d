@@ -1,0 +1,6 @@
+# Ignore everything in this directory
+*.o
+fd3d.dSYM
+makefile
+
+# Except this file
