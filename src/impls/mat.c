@@ -1148,6 +1148,83 @@ PetscErrorCode createGD(Mat *GD, GridInfo gi)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "createGD2"
+/**
+ * createGD2
+ * -------
+ * Create the matrix GD, the eps^-1 grad(div) operator on E fields.
+ */
+PetscErrorCode createGD2(Mat *GD, GridInfo gi)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr;
+
+	/** Set up the matrix DivE, the divergence operator on E fields. */
+	Mat DivE;
+	ierr = createDivE(&DivE, gi); CHKERRQ(ierr);
+
+	/*
+	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nDivE\n"); CHKERRQ(ierr);
+	   ierr = MatView(DivE, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
+	 */
+
+	/** Set up the matrix EGrad, the gradient operator generating E fields. */
+	Mat EGrad;
+	ierr = createEGrad(&EGrad, gi); CHKERRQ(ierr);
+
+	/** Set the inverse of the permittivity vector at nodes, and left-scale DivE by invEps. */
+	Vec invEps;
+	//ierr = create_epsNode(&invEpsNode, gi); CHKERRQ(ierr);
+	ierr = createFieldArray(&invEps, set_eps_at, gi); CHKERRQ(ierr);
+	ierr = VecReciprocal(invEps); CHKERRQ(ierr);
+	ierr = MatDiagonalScale(EGrad, invEps, PETSC_NULL); CHKERRQ(ierr);
+	ierr = VecDestroy(&invEps); CHKERRQ(ierr);
+
+	/*
+	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nEGrad\n"); CHKERRQ(ierr);
+	   ierr = MatView(EGrad, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
+	 */
+
+	/** Create the matrix GD. */
+	/** Below, 11 is the maximum number of nonzero elements in a diagonal portion of 
+	  a local submatrix. e.g., if GD is 9-by-9 and distributed among 3 processors, 
+	  entire row (0,1,2) compose a submatrix in processsor 0, and row (3,4,5) in 
+	  processor 1, row (6,7,8) in processor 2.  In processor 1, the diagonal portion 
+	  means 3-by-3 square matrix at the diagonal, which is composed of row (3,4,5) and 
+	  column (3,4,5).  Each row of GD corresponds to one of Ex, Ey, Ez component of 
+	  some cell in the grid.
+
+	  When GD is multiplied to a vector x, which has 3*Nx*Ny*Nz E field components, a 
+	  row of GD generates an output E field component out of 11 input E field 
+	  components; each output E field component is calculated as the gradient between the 
+	  scalar potentials at two nodal points, and each scalar potential value is calculated 
+	  as the divergence at a point, which involves 6 E field components.  So, the output E 
+	  field component is calculated out of 6 + 6 input E field components, but one component
+	  is shared between the two sets of 6 components, and therefore the output E field 
+	  component comes from 6 + 6 - 1 = 11 input E field components.
+
+	  If the cell containing the output E field component is in interior of a local 
+	  portion of the Yee's grid, then all 11 input E field components can be in the diagonal
+	  portion of a local submatrix.
+
+	  On the other hand, if the cell is at a boundary of a local grid, then some of 11 
+	  input E field components can lie outside the local grid.  It is obivous that 3 components
+	  that are in the same cell as the output E field component are guaranteed to be in the same
+	  local grid, but the rest 11 - 3 = 8 components can lie outside.  Therefore 8 input E field 
+	  components can be in the off-diagonal portion of the submatrix. */
+
+	/** Set up the matrix GD. */
+	ierr = MatMatMult(EGrad, DivE, MAT_INITIAL_MATRIX, 11.0/(2.0+6.0), GD); CHKERRQ(ierr); // GD = invEps*EGrad*DivE
+	//ierr = MatMatMult(CH, HE, MAT_INITIAL_MATRIX, PETSC_DEFAULT, GD); CHKERRQ(ierr); // GD = CH*invMu*CE
+
+	/** Destroy matrices and vectors. */
+	ierr = MatDestroy(&DivE); CHKERRQ(ierr);
+	ierr = MatDestroy(&EGrad); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "createDG"
 /**
  * createDG
@@ -1447,7 +1524,8 @@ PetscErrorCode create_A_and_b(Mat *A, Vec *b, Vec *right_precond, Mat *HE, GridI
 
 		/** Create the gradient-divergence operator. */
 		Mat GD;
-		ierr = createGD(&GD, gi); CHKERRQ(ierr);
+		//ierr = createGD(&GD, gi); CHKERRQ(ierr);
+		ierr = createGD2(&GD, gi); CHKERRQ(ierr);
 		ierr = updateTimeStamp(VBDetail, ts, "GD matrix", gi); CHKERRQ(ierr);
 
 		/** Create b. */
