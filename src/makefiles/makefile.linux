@@ -1,5 +1,6 @@
 DEBUG = 0
 USE_SLEPC = 0
+CFLAGS_CUSTOM = -Wall -Wwrite-strings -g3
 ifeq (${DEBUG}, 0)
 	# e.g., PETSC_ARCH = abe-intel10-complex-opt
 	PETSC_ARCH = 

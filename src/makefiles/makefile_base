@@ -8,7 +8,7 @@ UTIL = util
 INC = include
 
 CPPFLAGS = ${CPPFLAGS} -I${INC}
-CFLAGS = -Wall -Wwrite-strings -g3 -DUSE_SLEPC=${USE_SLEPC}
+CFLAGS = ${CFLAGS_CUSTOM} -g3 -DUSE_SLEPC=${USE_SLEPC}
 FFLAGS =
 FPPFLAGS =
 

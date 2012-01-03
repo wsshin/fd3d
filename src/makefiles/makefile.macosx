@@ -1,5 +1,6 @@
 DEBUG = 1
 USE_SLEPC = 0
+CFLAGS_CUSTOM = -Wall -Wwrite-strings -g3
 ifeq (${DEBUG}, 0)
 	PETSC_ARCH = g64
 else
