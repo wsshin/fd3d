@@ -1524,8 +1524,8 @@ PetscErrorCode create_A_and_b(Mat *A, Vec *b, Vec *right_precond, Mat *HE, GridI
 
 		/** Create the gradient-divergence operator. */
 		Mat GD;
-		//ierr = createGD(&GD, gi); CHKERRQ(ierr);
-		ierr = createGD2(&GD, gi); CHKERRQ(ierr);
+		ierr = createGD(&GD, gi); CHKERRQ(ierr);
+		//ierr = createGD2(&GD, gi); CHKERRQ(ierr);
 		ierr = updateTimeStamp(VBDetail, ts, "GD matrix", gi); CHKERRQ(ierr);
 
 		/** Create b. */
