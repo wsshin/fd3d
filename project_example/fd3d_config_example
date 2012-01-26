@@ -14,6 +14,8 @@
 #-fd3d_take_snapshots 100
 #-fd3d_output_relres
 
+#-fd3d_symmetric
+
 #-fd3d_x_type H
 #-fd3d_add_conteq 1
 #-fd3d_pml scpml
