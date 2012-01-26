@@ -3,6 +3,8 @@ function A = mode2d_matrix(eps_grid, mu_grid, gi)
 % need to update get_DpEq(), etc, for Bloch BC.
 % The operator A acts on H fields, not E fields.  Therefore, A x = lambda x 
 % solves for H fields of an eigenmode of the system.
+% For the eigenvalue equation, see
+% Sec II of G. Veronis and S. Fan, Journal of Lightwave Technology, vol. 25, no. 9, pp.2511--2521.
 
 %% Import constants.
 const;
@@ -56,6 +58,7 @@ mu_yy = mu_grid;
 mu_zz = mu_grid;
 
 %% Create eps and mu matrices.  Note that each of eps_xx, eps_yy, mu_zz can be either a scalar or matrix.
+% I think I use UPML here.  Is this OK with SC-PML in FD3D?
 eps_xx_mat = eps_xx .* sy_prim ./ sx_dual;  % eps_xx is multiplied to Ex.  Ex's are at dual grid positions in x, and at grid positions in y.
 eps_yy_mat = eps_yy .* sx_prim ./ sy_dual;  % eps_yy is multiplied to Ey.  Ey's are at grid positions in x, and at dual grip positions in x.
 eps_zz_mat = eps_zz .* sx_prim .* sy_prim;  % eps_zz is multiplied to Ez.  Ez's are at grid positions in both x and y.
@@ -74,6 +77,7 @@ mu_zz_mat = diag(sparse(mu_zz_mat(:)));
 
 
 %% Create the operator.
+% See Sec. II of G. Veronis and S. Fan, Journal of Lightwave Technology, vol. 25, no. 9, pp.2511--2521.
 filler = sparse(N,N);  % just zero matrix to put between submatrix blocks
 A = -omega^2 * [eps_yy_mat filler; filler eps_xx_mat] * [mu_xx_mat filler; filler mu_yy_mat] ...
     + [eps_yy_mat filler; filler -eps_xx_mat] * [DyEz; DxEz] * (eps_zz_mat \ [-DyHx DxHy]) ...

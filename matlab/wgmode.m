@@ -13,7 +13,7 @@ classdef wgmode < handle
     end
     
     properties (SetAccess = private)
-        gamma
+        gamma % Lp^-1 + i*beta = Lp^-1 + i*2*pi*n_eff*lambda_0^-1
         e
         epse  % eps * E = D field
         h

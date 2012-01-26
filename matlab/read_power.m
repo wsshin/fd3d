@@ -23,3 +23,5 @@ dLq_patch = gi.dL{Prim, Qq}; dLq_patch = dLq_patch(q:q+Nq-1);
 area = dLp_patch.' * dLq_patch;
 pr = sr_patch .* area;
 pr = sum(pr(:));
+
+clear sr sr_patch area

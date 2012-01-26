@@ -30,6 +30,7 @@ if any(comp_to_get(Efield,:))
     clear E;
 end
 e = {ex; ey; ez};
+clear ex ey ez
 
 %% Read H field.
 if any(comp_to_get(Hfield,:))
@@ -52,3 +53,4 @@ if any(comp_to_get(Hfield,:))
     clear H;
 end
 h = {hx; hy; hz};
+clear hx hy hz

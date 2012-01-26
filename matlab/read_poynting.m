@@ -115,6 +115,9 @@ hp = (hp(1:end-1,:) + hp(2:end,:))/2;
 hq = (hq(:,1:end-1) + hq(:,2:end))/2;
 
 sr_array = real(ep.*conj(hq) - eq.*conj(hp))/2;
+
+clear ep eq hp hq
+
 gk(Pp) = Dual;
 gk(Qq) = Dual;
 gk(Rr) = Prim;
