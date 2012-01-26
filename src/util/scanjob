@@ -6,7 +6,7 @@ from numpy import arange
 from optparse import OptionParser
 
 '''Parse options.'''
-parser = OptionParser(usage='%prog [OPTION] JOB_TEMPLATE FIRST:STEP:LAST\nJOB_TEMPLATE.tmi has $scanvar$, and JOB_TEMPLATE.tmj has $inputname$.\n\nscanjob does\n- generate input files from JOB_TEMPLATE.tmi for $scanvar$=FIRST:STEP:LAST\n- generate job files from JOM_TEMPLATE.tmj\n- submit the job files.')
+parser = OptionParser(usage='%prog [OPTION] JOB_TEMPLATE FIRST:STEP:LAST\nJOB_TEMPLATE.tmi has $scanvar$, and JOB_TEMPLATE.tmj has $inputname$.\n\nscanjob does\n- generate input files from JOB_TEMPLATE.tmi for $scanvar$=FIRST:STEP:LAST\n- generate job files from JOB_TEMPLATE.tmj\n- submit the job files.')
 (options, args) = parser.parse_args()
 
 '''Specify file name (with .job) in ../job/ directory.'''

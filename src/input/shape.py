@@ -66,11 +66,28 @@ class Shape:
 		assert(self.translatable)
 		return Shape(self.grid, lambda x,y,z: self.isinside_original(x-dx, y-dy, z-dz), self.on_real_axes, [self.c[Xx]+dx, self.c[Yy]+dy, self.c[Zz]+dz], True)
 
-	def center_at_orig(self):
-		return self.translate(-self.c[Xx], -self.c[Yy], -self.c[Zz])
+	def center_at_orig(self, axis = -1):
+		if axis < 0:
+			return self.translate(-self.c[Xx], -self.c[Yy], -self.c[Zz])
+		elif axis == Xx:
+			return self.translate(-self.c[Xx], 0, 0)
+		elif axis == Yy:
+			return self.translate(0, -self.c[Yy], 0)
+		else:
+			assert(axis == Zz)
+			return self.translate(0, 0, -self.c[Zz])
 
-	def center_at_middle(self):
-		return self.center_at_orig().translate(self.grid.get_N_float(Xx)/2, self.grid.get_N_float(Yy)/2, self.grid.get_N_float(Zz)/2)
+	def center_at_middle(self, axis = -1):
+		temp = self.center_at_orig()		
+		if axis < 0:
+			return temp.translate(self.grid.get_N_float(Xx)/2, self.grid.get_N_float(Yy)/2, self.grid.get_N_float(Zz)/2)
+		elif axis == Xx:
+			return temp.translate(self.grid.get_N_float(Xx)/2, 0, 0)
+		elif axis == Yy:
+			return temp.translate(0, self.grid.get_N_float(Yy)/2, 0)
+		else:
+			assert(axis == Zz)
+			return temp.translate(0, 0, self.grid.get_N_float(Zz)/2)
 	
 	def draw(self, C, normal_dir, intercept, val):
 		rows, cols = C.shape
