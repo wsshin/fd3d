@@ -19,6 +19,8 @@ classdef gridinfo < handle
     
     properties (Dependent)
         angular_freq
+        true_wvlen
+        eV
     end
     
     methods
@@ -66,12 +68,21 @@ classdef gridinfo < handle
             end
         end
         
+        function lambda = get.true_wvlen(this)
+            lambda = this.wvlen * this.L0;
+        end
+        
         function omega = get.angular_freq(this)
             omega = 2*pi / this.wvlen;
         end
         
         function set.angular_freq(this, omega)
             this.wvlen = 2*pi/omega;
+        end
+        
+        function energy = get.eV(this)
+            const;
+            energy = heV*c0 / this.true_wvlen;
         end
     end
 end

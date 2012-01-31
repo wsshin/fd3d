@@ -72,7 +72,7 @@ class Simulation:
 		if name=='Vacuum':
 			return Vac
 		else:
-			return create_material(name, color, self.grid.get_true_wvlen())
+			return create_material(name, color, self.grid.get_eV())
 	
 	def append_bg_object(self, obj):
 		self.bg_objList.append(obj)

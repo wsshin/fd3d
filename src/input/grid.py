@@ -32,6 +32,9 @@ class Grid:
 	def get_omega(self):
 		self.confirm_initialized()
 		return self.omega
+	
+	def get_eV(self):
+		return heV*c0 / self.get_true_wvlen()
 
 	def get_wvlen(self):
 		self.confirm_initialized()
@@ -170,7 +173,9 @@ if __name__ == '__main__':
 	grid.initialize()
 	
 	print 'wavelength:', grid.get_wvlen()
+	print 'true wavelength:', grid.get_true_wvlen()
 	print 'omega:', grid.get_omega()
+	print 'eV:', grid.get_eV()
 	print 'k_Bloch:', grid.get_k_Bloch(Xx), grid.get_k_Bloch(Yy), grid.get_k_Bloch(Zz)
 	print 'exp(-ikL):', grid.get_exp_neg_ikL(Xx), grid.get_exp_neg_ikL(Yy), grid.get_exp_neg_ikL(Zz)
 	print 'd_prim:'

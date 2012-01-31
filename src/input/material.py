@@ -37,8 +37,7 @@ TruePEC = Material('PEC', -2, float('inf'))
 #	eps = eps * eps
 #	return Material(name, color, eps)
 
-def create_material(name, color, wvlen0):
-	eV0 = heV*c0 / wvlen0;
+def create_material(name, color, eV0):
 	param_dir = FD3D_ROOT + '/material/'
 	param_file = name + '.mat'
 	param = loadmat(param_dir + param_file)
