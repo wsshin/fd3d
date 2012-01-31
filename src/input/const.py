@@ -7,6 +7,9 @@ mu0 = pi*4.0e-7
 eps0 = 1.0 / (mu0*c0*c0)
 eta0 = sqrt(mu0/eps0)
 
+heV = 4.13566733e-15;
+hbar = heV / (2*pi);
+
 Xx, Yy, Zz , Naxis = range(4)
 AxisName = ['X', 'Y', 'Z']
 Neg, Pos, Nsign = range(3)

@@ -43,6 +43,9 @@ class Grid:
 		self.omega = 2*pi/wvlen
 		self.wvlen_set = True
 	
+	def get_true_wvlen(self):
+		return self.get_wvlen() * self.get_length_unit()
+	
 	def set_dL_default(self, dL_default):
 		self.confirm_not_initialized()
 		assert(len(dL_default)==3)

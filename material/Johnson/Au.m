@@ -9,11 +9,11 @@ k = [13.78 11.21 9.519 8.145 7.150 6.350 5.663 5.083 4.542 4.103 3.697 3.272 2.8
 %% Convert the photon energies to the wavelengths.
 wvlen = heV*c0*1e9 ./ eV;
 
-%% Reverse the data order, and make them column vectors.
-eV = eV(end:-1:1).';
-n = n(end:-1:1).';
-k = k(end:-1:1).';
-wvlen = wvlen(end:-1:1).';
+% %% Reverse the data order, and make them column vectors.
+% eV = eV(end:-1:1).';
+% n = n(end:-1:1).';
+% k = k(end:-1:1).';
+% wvlen = wvlen(end:-1:1).';
 
 %% Calculate the permittivity from n and k following the exp(+i w t) time dependence.
 eps = (n - sqrt(-1)*k).^2;
@@ -23,7 +23,7 @@ nk_wvlen = 1;
 eps_eV = 2;
 eps_wvlen = 3;
 q_omega = 5;
-plotstyle = q_omega;
+plotstyle = eps_eV;
 switch plotstyle
     case nk_wvlen  % plot n and k
         loglog(wvlen, n, wvlen, k)
@@ -56,4 +56,4 @@ end
 
 
 %% Save data.
-save('Au.mat', 'wvlen', 'n', 'k');
+%save('Au.mat', 'eV', 'n', 'k');

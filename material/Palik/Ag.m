@@ -110,6 +110,12 @@ k = [k1 k2 k3 k4 k5 k6].';
 %% Convert the wavelengths to the photon energies.
 eV = heV*c0*1e9 ./ wvlen;
 
+%% Reverse the data order.
+eV = eV(end:-1:1);
+n = n(end:-1:1);
+k = k(end:-1:1);
+wvlen = wvlen(end:-1:1);
+
 %% Calculate the permittivity from n and k following the exp(+i w t) time dependence.
 eps = (n - sqrt(-1)*k).^2;
 
@@ -117,7 +123,7 @@ eps = (n - sqrt(-1)*k).^2;
 nk_wvlen = 1;
 eps_eV = 2;
 eps_wvlen = 3;
-plotstyle = eps_wvlen;
+plotstyle = nk_wvlen;
 switch plotstyle
     case nk_wvlen  % plot n and k
         loglog(wvlen, n, wvlen, k)
@@ -139,4 +145,4 @@ end
 
 
 %% Save data.
-%save('Ag.mat', 'wvlen', 'n', 'k');
+%save('Ag.mat', 'eV', 'n', 'k');

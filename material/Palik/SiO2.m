@@ -194,6 +194,12 @@ k = [k1 k2 k3 k4 k5 k6 k7 k8 k9 k10 k11 k12].';
 %% Convert the wavelengths to the photon energies.
 eV = heV*c0*1e9 ./ wvlen;
 
+%% Reverse the data order.
+eV = eV(end:-1:1);
+n = n(end:-1:1);
+k = k(end:-1:1);
+wvlen = wvlen(end:-1:1);
+
 %% Calculate the permittivity from n and k following the exp(+i w t) time dependence.
 eps = (n - sqrt(-1)*k).^2;
 
@@ -223,4 +229,4 @@ end
 
 
 %% Save data.
-save('SiO2.mat', 'wvlen', 'n', 'k');
+%save('SiO2.mat', 'eV', 'n', 'k');
