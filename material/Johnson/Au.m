@@ -9,11 +9,11 @@ k = [13.78 11.21 9.519 8.145 7.150 6.350 5.663 5.083 4.542 4.103 3.697 3.272 2.8
 %% Convert the photon energies to the wavelengths.
 wvlen = heV*c0*1e9 ./ eV;
 
-% %% Reverse the data order, and make them column vectors.
-% eV = eV(end:-1:1).';
-% n = n(end:-1:1).';
-% k = k(end:-1:1).';
-% wvlen = wvlen(end:-1:1).';
+%% Make the row vectors into column vectors to be used in interp1q().
+eV = eV.';
+n = n.';
+k = k.';
+wvlen = wvlen.';
 
 %% Calculate the permittivity from n and k following the exp(+i w t) time dependence.
 eps = (n - sqrt(-1)*k).^2;
@@ -56,4 +56,4 @@ end
 
 
 %% Save data.
-%save('Au.mat', 'eV', 'n', 'k');
+save('Au.mat', 'eV', 'n', 'k');
