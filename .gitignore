@@ -1,2 +1,5 @@
 TODO
+*.o
 *.swp
+*.pyc
+.DS_Store
