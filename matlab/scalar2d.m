@@ -52,26 +52,43 @@ classdef scalar2d < handle
             end
         end
         
-        function h = plot(this, cscale)
+        function [field, Lp, Lq, dp, dq] = data_plotted(this)
             const;
-
-            L0 = this.gi.L0;
-            dlu = this.gi.display_length_unit;
-            dlu_scale = this.gi.dlu_scale;
-
-            field = this.array;
-            field = field.';  % transposition without conjugation
-            field = exp(sqrt(-1) * this.phase_angle) .* field;
             
-            % If the field values are defined on dual grid points, fill the color between primary grid lines.
-            Lp = this.gi.L{conjugate_grid(this.grid_kind(this.Pp)), this.Pp};
-            Lq = this.gi.L{conjugate_grid(this.grid_kind(this.Qq)), this.Qq};
+            field = this.array;
+            field = exp(sqrt(-1) * this.phase_angle) .* field;
+            field = this.draw_function(field);
+            
+            if this.draw_abs
+                field = abs(field);
+            else 
+                field = real(field);
+            end
+            
             mp_neg = this.margin(this.Pp,Neg);
             mp_pos = this.margin(this.Pp,Pos);
             mq_neg = this.margin(this.Qq,Neg);
             mq_pos = this.margin(this.Qq,Pos);
             
-            field = this.draw_function(field(1+mq_neg:end-mq_pos, 1+mp_neg:end-mp_pos));
+            field = field(1+mp_neg:end-mp_pos, 1+mq_neg:end-mq_pos);
+
+            % If the field values are defined on dual grid points, Lp and Lq are locations of primary grid lines.
+            Lp = this.gi.L{conjugate_grid(this.grid_kind(this.Pp)), this.Pp};
+            Lq = this.gi.L{conjugate_grid(this.grid_kind(this.Qq)), this.Qq};
+            Lp = Lp(1+mp_neg:end-mp_pos);
+            Lq = Lq(1+mq_neg:end-mq_pos);
+            
+            % If the field values are defined on dual grid points, Lp and Lq are distances between primary grid lines.
+            dp = this.gi.dL{conjugate_grid(this.grid_kind(this.Pp)), this.Pp};
+            dq = this.gi.dL{conjugate_grid(this.grid_kind(this.Qq)), this.Qq};
+            dp = dp(1+mp_neg:end-mp_pos);
+            dq = dq(1+mq_neg:end-mq_pos);
+        end
+        
+        function h = plot(this, cscale)
+            const;
+
+            [field, Lp, Lq] = this.data_plotted();
 
             if this.draw_abs_cscale  % calculate [cmin cmax] from the phasors, before real(field) or abs(field) is taken
                 cmax = max(abs(field(:)));
@@ -80,16 +97,6 @@ classdef scalar2d < handle
                 else
                     cmin = -cmax;
                 end
-            end
-            
-            if this.draw_abs
-                field = abs(field);
-                plot_title = strcat('|', this.name, '|', ', \lambda =', num2str(this.gi.wvlen*L0*dlu_scale), dlu, ' (', AxisName(this.normal), '=', num2str(this.real_intercept*L0*dlu_scale), dlu, ')');
-                colormap('hot');
-            else 
-                field = real(field);
-                plot_title = strcat(this.name, ', \lambda =', num2str(this.gi.wvlen*L0*dlu_scale), dlu, ' (', AxisName(this.normal), '=', num2str(this.real_intercept*L0*dlu_scale), dlu, ')');
-                colormap('jet');
             end
             
             if ~this.draw_abs_cscale  % calculate [cmin cmax] after real(field) or abs(field) is taken above
@@ -111,7 +118,7 @@ classdef scalar2d < handle
             field = [field, field(:,end)];
             field = double(field);  % CData should be in double precision
             
-            h = pcolor(Lp(1+mp_neg:end-mp_pos), Lq(1+mq_neg:end-mq_pos), field);
+            h = pcolor(Lp, Lq, field.');  % transpose field
             axis image, axis xy;
             
             caxis(crange);
@@ -125,15 +132,24 @@ classdef scalar2d < handle
                 set(h,'EdgeAlpha',0)
             end
             
+            L0 = this.gi.L0;
+            dlu = this.gi.display_length_unit;
+            dlu_scale = this.gi.dlu_scale;
+
+            if this.draw_abs
+                plot_title = strcat('|', this.name, '|', ', \lambda =', num2str(this.gi.wvlen*L0*dlu_scale), dlu, ' (', AxisName(this.normal), '=', num2str(this.real_intercept*L0*dlu_scale), dlu, ')');
+                colormap('hot');
+            else 
+                plot_title = strcat(this.name, ', \lambda =', num2str(this.gi.wvlen*L0*dlu_scale), dlu, ' (', AxisName(this.normal), '=', num2str(this.real_intercept*L0*dlu_scale), dlu, ')');
+                colormap('jet');
+            end
+
             if this.calc_flux
                 title({plot_title; strcat('Flux=',num2str(this.flux()))});
             else
                 title(plot_title);
             end
             
-            L0 = this.gi.L0;
-            dlu = this.gi.display_length_unit;
-            dlu_scale = this.gi.dlu_scale;
             xlabel(strcat(AxisName(this.Pp), ' (', char(hex2dec('00D7')), ...  % 00D7 is a unicode character for the multiplication sign.
                 num2str(L0*dlu_scale), dlu, ')'));
             ylabel(strcat(AxisName(this.Qq), ' (', char(hex2dec('00D7')), ...  % 00D7 is a unicode character for the multiplication sign.
@@ -150,22 +166,12 @@ classdef scalar2d < handle
             this.margin = margin;
         end
         
+        % The flux of the quantity that is plotted
         function flux_value = flux(this)
             const;
-            mp_neg = this.margin(this.Pp,Neg);
-            mp_pos = this.margin(this.Pp,Pos);
-            mq_neg = this.margin(this.Qq,Neg);
-            mq_pos = this.margin(this.Qq,Pos);
-            dp = this.gi.dL{conjugate_grid(this.grid_kind(this.Pp)), this.Pp};
-            dq = this.gi.dL{conjugate_grid(this.grid_kind(this.Qq)), this.Qq};
+            [field, Lp, Lq, dp, dq] = this.data_plotted();
             dS = dp.' * dq;
-            dS = dS(1+mp_neg:end-mp_pos,1+mq_neg:end-mq_pos);
 
-            field = this.array;
-            field = field(1+mp_neg:end-mp_pos,1+mq_neg:end-mq_pos);
-            field = exp(sqrt(-1) * this.phase_angle) .* field;
-            field = real(field);
-            
             flux_value = field .* dS;
             flux_value = sum(flux_value(:));
         end
