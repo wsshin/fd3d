@@ -1,15 +1,25 @@
+# shape.py
+"""
+This module defines various classes that are used to specify the shapes of physical objects put 
+in the simulation domain.
+Two coordinate systems are used to specify the sizes and locations of shapes: the real coordinate system and the index coordinate system. 
+Note that the origin of the real coordinate system coincides with the origin of the index coordinate system.
+"""
+
+__docformat__ = 'restructuredtext en'
+
 from math import pi
 from numpy import zeros, array, fromfile
 from const import *
 
-'''Note that the origin of the real coordinate system coincides with the origin of the index coordinate system.'''
-
 class Shape:
 	def __init__(self, grid, isinside, on_real_axes = False, center = [0,0,0], translatable = True):
-		'''Set an inequality describing the inside of this shape using lambda calculus.
+		"""
+		Set an inequality describing the inside of this shape using lambda calculus.
 		isinside should take three arguments and return a truth value.
-		e.g. isinside = lambda x,y,z: 0<x<1 and 0<y<1 and 0<z<1'''
-		'''Currently, on_real_axes is accepted only for objects with curved surfaces.'''
+		e.g. isinside = lambda x,y,z: 0<x<1 and 0<y<1 and 0<z<1
+		Currently, on_real_axes is accepted only for objects with curved surfaces.
+		"""
 		self.grid = grid
 		self.isinside_original = isinside
 		if on_real_axes:
@@ -23,12 +33,12 @@ class Shape:
 		
 	def __add__(self, other):
 		if (not self.on_real_axes and other.on_real_axes) or (self.on_real_axes and not other.on_real_axes):  
-			'''If one is on real axes but the other is not, the result is not translatable.  Also 
-			it is in the index coordinate system.'''
+			"""If one is on real axes but the other is not, the result is not translatable.  
+			Also it is in the index coordinate system."""
 			return Shape(self.grid, lambda x,y,z: self.isinside(x,y,z) or other.isinside(x,y,z), False, [0,0,0], False)
 		else: 
-			'''If both are on real axes, or both are in the index coordinate system, the result is
-			translatable.  Also, the shared on_real_axes property is preserved.'''
+			"""If both are on real axes, or both are in the index coordinate system, the result is 
+			translatable.  Also, the shared on_real_axes property is preserved."""
 			return Shape(self.grid, lambda x,y,z: self.isinside_original(x,y,z) or other.isinside_original(x,y,z), self.on_real_axes, [0,0,0], True)
 
 	def __neg__(self):
@@ -36,33 +46,34 @@ class Shape:
 
   	def __sub__(self, other):
 		if (not self.on_real_axes and other.on_real_axes) or (self.on_real_axes and not other.on_real_axes):  
-			'''If one is on real axes but the other is not, the result is not translatable.  Also 
-			it is in the index coordinate system.'''
+			"""If one is on real axes but the other is not, the result is not translatable.  
+			Also it is in the index coordinate system."""
 			return Shape(self.grid, lambda x,y,z: self.isinside(x,y,z) and not other.isinside(x,y,z), False, [0,0,0], False)
 		else: 
-			'''If both are on real axes, or both are in the index coordinate system, the result is
-			translatable.  Also, the shared on_real_axes property is preserved.'''
+			"""If both are on real axes, or both are in the index coordinate system, the result is 
+			translatable.  Also, the shared on_real_axes property is preserved."""
 			return Shape(self.grid, lambda x,y,z: self.isinside_original(x,y,z) and not other.isinside_original(x,y,z), self.on_real_axes, [0,0,0], True)
 
 	def intersect(self, other):
 		if (not self.on_real_axes and other.on_real_axes) or (self.on_real_axes and not other.on_real_axes):  
-			'''If one is on real axes but the other is not, the result is not translatable.  Also 
-			it is in the index coordinate system.'''
+			"""If one is on real axes but the other is not, the result is not translatable.  
+			Also it is in the index coordinate system."""
 			return Shape(self.grid, lambda x,y,z: self.isinside(x,y,z) and other.isinside(x,y,z), False, [0,0,0], False)
 		else: 
-			'''If both are on real axes, or both are in the index coordinate system, the result is
-			translatable.  Also, the shared on_real_axes property is preserved.'''
+			"""If both are on real axes, or both are in the index coordinate system, the result is 
+			translatable.  Also, the shared on_real_axes property is preserved."""
 			return Shape(self.grid, lambda x,y,z: self.isinside_original(x,y,z) and other.isinside_original(x,y,z), self.on_real_axes, [0,0,0], True)
 
 	def contains(self, x, y, z):
 		return self.isinside(x,y,z)
 
 	def translate(self, dx, dy, dz):
-		'''dx,dy,dz are translation in real locations if on_real_axes == True.'''
-		'''Shape with on_real_axes == True should not be translated after it is added to, 
+		"""
+		dx,dy,dz are translation in real locations if on_real_axes == True.
+		Shape with on_real_axes == True should not be translated after it is added to, 
 		intersected with, or subtracted from Shape with on_real_axes == False, and vice versa.  
 		This is because Shape with on_real_axes == True loses the property after mixed with Shape 
-		with on_real_axes == False.'''
+		with on_real_axes == False."""
 		assert(self.translatable)
 		return Shape(self.grid, lambda x,y,z: self.isinside_original(x-dx, y-dy, z-dz), self.on_real_axes, [self.c[Xx]+dx, self.c[Yy]+dy, self.c[Zz]+dz], True)
 
@@ -145,7 +156,9 @@ class Point(Shape):
 
 class Slab(Shape):
   	def __init__(self, grid, normal, t, on_real_axes = False):
-		'''normal: normal direction, t: thickness'''
+		"""
+		normal: normal direction, t: thickness
+		"""
 		c = []
 		if normal == Xx:
 			c = [float(t)/2, 0, 0]
@@ -165,12 +178,16 @@ class Plane(Shape):
 		self.normal = normal
 
 class CrossSectional:
-	'''Abstract factory for planar and cylindrical shapes of a specific cross section.
-	This is not Shape, but has factory methods for planar and cylindrical shapes'''
+	"""
+	Abstract factory for planar and cylindrical shapes of a specific cross section.
+	This is not Shape, but has factory methods for planar and cylindrical shapes
+	"""
 	def __init__(self, grid, isinside, on_real_axes = False, center = [0,0]):
-		'''isinside is a lambda calculus object that determines if a given 2D point 
+		"""
+		isinside is a lambda calculus object that determines if a given 2D point 
 		(p,q) is inside this specific cross sectional area.  
-		e.g. isinside = lambda p,q: 0<p<1 and 0<q<1'''
+		e.g. isinside = lambda p,q: 0<p<1 and 0<q<1
+		"""
 		self.grid = grid
 		self.isinside = lambda p,q: isinside(float(p), float(q))  # Make sure the stored lambda calculus works for floating points.
 		assert(len(center)==2)
@@ -251,8 +268,10 @@ class SquareTriangular(RightTriangular):
 		RightTriangular.__init__(self, grid, L, L, lower)
 
 class Planar(CrossSectional):
-	'''Assume that the given file represents a 2D array of booleans indicating whether each 
-	integral point is contained in a cross section.'''
+	"""
+	Assume that the given file represents a 2D array of booleans indicating whether each 
+	integral point is contained in a cross section.
+	"""
 	def __init__(self, grid, normal, filename):
 		self.normal = normal
 		if self.normal == Xx:

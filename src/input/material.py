@@ -38,6 +38,8 @@ TruePEC = Material('PEC', -2, float('inf'))
 #	return Material(name, color, eps)
 
 def create_material(name, color, eV0):
+	if color <= 0:
+		raise ValueError('Non-positive color indices are reserved')
 	param_dir = FD3D_ROOT + '/material/'
 	param_file = name + '.mat'
 	param = loadmat(param_dir + param_file)

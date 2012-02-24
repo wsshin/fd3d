@@ -16,7 +16,7 @@ class Source:
 		return self.shape.contains(i,j,k)
 	
 	def get_src_at(self, axis, i, j, k):
-		'''In principle, the source value should be determined for a given position, because Jx, 
+		"""In principle, the source value should be determined for a given position, because Jx, 
 		Jy, Jz of the same cell are located at different positions.  For example, when the source 
 		value at a position (3.5, 1, 2) is requested, Jx of the cell (3, 1, 2) should be returned.
 		Therefore, to retrieve the source value, it seems like a position is sufficient 
@@ -25,7 +25,7 @@ class Source:
 		numbers is not credible.  When the position (3.5, 1, 2) is passed, there is no easy way to
 		decide whether 3.5 is truly 3+(1/2); the result can be different from one CPU architecture
 		to another.
-		Therefore, we do not merge the polarization information into the position.'''
+		Therefore, we do not merge the polarization information into the position."""
 		if self.is_valid_at(axis, i, j, k):
 			return self.get_src_at_kernel(axis, i, j, k)
 		else:
@@ -38,7 +38,7 @@ class Source:
 		return TranslateSrc(self, x0, y0, z0)
 
 class PolarizedSource(Source):
-	'''Source with a specific polarization'''
+	"""Source with a specific polarization"""
 	def __init__(self, grid, polarization, shape):
 		Source.__init__(self, grid, shape)
 		self.polarization = polarization
@@ -70,8 +70,8 @@ class PointSrc(PolarizedSource):
 
 class PlaneSrc(PolarizedSource):
 	def __init__(self, grid, polarization, normal, value, Lp=None, Lq=None):
-		'''(normal, p, q) is a cyclic permutation of (x, y, z).  Therefore, if normal = Yy for 
-		example, then Lp = Lz and Lq = Lx.'''
+		"""(normal, p, q) is a cyclic permutation of (x, y, z).  Therefore, if normal = Yy for 
+		example, then Lp = Lz and Lq = Lx."""
 		self.value = value
 		self.Lp = Lp
 		self.Lq = Lq
@@ -86,15 +86,15 @@ class PlaneSrc(PolarizedSource):
 		ind = [i, j, k]
 		ind[self.polarization] += 0.5  # axis == self.polarization
 		k_Bloch = [self.grid.get_k_Bloch(Xx), self.grid.get_k_Bloch(Yy), self.grid.get_k_Bloch(Zz)]
-		'''Because dual grid points are exactly at the center of primary edges, applying get_L_at()
-		to (ind += 0.5) gives the exact dual grid points.'''
+		"""Because dual grid points are exactly at the center of primary edges, applying get_L_at()
+		to (ind += 0.5) gives the exact dual grid points."""
 		r = [self.grid.get_L_at(Xx,ind[Xx]), self.grid.get_L_at(Yy,ind[Yy]), self.grid.get_L_at(Zz,ind[Zz])]
 		return self.value * exp(-1j * sum(imap(mul, k_Bloch, r)))
 
 class PlaneDistributedSrc(Source):
 	def __init__(self, grid, normal, value_array_p, value_array_q):
-		'''(normal, p, q) is a cyclic permutation of (x, y, z).  Therefore, if normal = Yy for 
-		example, then value_array_p = value_array_z and value_array_q = value_array_x.'''
+		"""(normal, p, q) is a cyclic permutation of (x, y, z).  Therefore, if normal = Yy for 
+		example, then value_array_p = value_array_z and value_array_q = value_array_x."""
 		assert(value_array_p!=None or value_array_q!=None)
 		if value_array_p!=None:
 			assert(isinstance(value_array_p, ndarray) and value_array_p.ndim==2)

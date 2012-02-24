@@ -25,8 +25,8 @@ class Simulation:
 		self.bg_objList.append(box_vac)
 		
 		# PMLs
-		'''The following object for the PML is only for visualization.  PML is functional without
-		this object once the PML is set in the input file by grid.set_Npml().'''
+		"""The following object for the PML is only for visualization.  PML is functional without
+		this object once the PML is set in the input file by grid.set_Npml()."""
 		Nx = grid.get_N(Xx)
 		Ny = grid.get_N(Yy)
 		Nz = grid.get_N(Zz)
@@ -92,8 +92,8 @@ class Simulation:
 		return self.x0_file
 	
 	def set_sol_guess(self, x0_file):
-		'''Set the file name of a guess of the solution, which is used as the starting 
-		point of the iterative solver.'''
+		"""Set the file name of a guess of the solution, which is used as the starting 
+		point of the iterative solver."""
 		self.x0_file = x0_file
 	
 	def get_sol_reference(self):
@@ -102,28 +102,28 @@ class Simulation:
 		return self.xref_file
 	
 	def set_sol_reference(self, xref_file):
-		'''Set the file name of a guess of the solution, which is used as the starting 
-		point of the iterative solver.'''
+		"""Set the file name of a guess of the solution, which is used as the starting 
+		point of the iterative solver."""
 		self.xref_file = xref_file
 	
 	def get_BiCG_tol(self):
-		'''Should change this to get_err_tol, because I also use iterative methods other than 
-		BiCG.''' 
+		"""Should change this to get_err_tol, because I also use iterative methods other than 
+		BiCG.""" 
 		return self.tol
 
 	def set_BiCG_tol(self, tol):
-		'''Set the tolerance of BiCG.'''
+		"""Set the tolerance of BiCG."""
 		self.tol = tol
 	
 	def get_BiCG_max_iter(self):
 		return self.max_iter
 
 	def set_BiCG_max_iter(self, max_iter):
-		'''Set the maximum number of iterations of BiCG.'''
+		"""Set the maximum number of iterations of BiCG."""
 		self.max_iter = max_iter
 	
 	def get_eps_at(self, axis, i, j, k, bg_only=False):
-		'''bg_only is for TF/SF.'''
+		"""bg_only is for TF/SF."""
 		assert(isinstance(i,int) and isinstance(j,int) and isinstance(k,int))
 		pos1 = [i, j, k]
 		eps1 = self.get_eps_at_kernel(pos1, bg_only)
@@ -137,27 +137,27 @@ class Simulation:
 			return 2.0 / (1.0/eps1 + 1.0/eps2)  # for the continuity of the normal component of E at the interface.  See Hwang and Cangellaris, IEEE Microwave and Wireless Components Letters, 11 (4), 2001
 
 	def get_eps_node_at(self, i, j, k, bg_only=False):
-		'''Return the value of eps at a node regardless of axis.'''
-		'''bg_only is for TF/SF.'''
+		"""Return the value of eps at a node regardless of axis."""
+		"""bg_only is for TF/SF."""
 		assert(isinstance(i,int) and isinstance(j,int) and isinstance(k,int))
 		pos = [i, j, k]
 		return self.get_eps_at_kernel(pos, bg_only)
 
 	def get_eps_at_kernel(self, pos, bg_only=False):
-		'''bg_only is for TF/SF.'''
+		"""bg_only is for TF/SF."""
 		assert(len(pos)==3)
-		'''If eps_file is set, then use it; TF/SF is not supported.'''
+		"""If eps_file is set, then use it; TF/SF is not supported."""
 		if self.eps_file != None:
 			raise NotImplemented
 
-		'''First, iterate through the foreground object list, because the foreground objects always
-		have priority to the background objects.'''
+		"""First, iterate through the foreground object list, because the foreground objects always
+		have priority to the background objects."""
 		if not bg_only:
 			for n in xrange(len(self.objList)-1, -1, -1):
 				obj = self.objList[n]
 				if obj.contains(pos[Xx], pos[Yy], pos[Zz]):
 					return obj.get_eps(self.grid.wvlen)
-		'''Next, iterate through the background object list.'''
+		"""Next, iterate through the background object list."""
 		for n in xrange(len(self.bg_objList)-1, -1, -1):
 			obj = self.bg_objList[n]
 			if obj.contains(pos[Xx], pos[Yy], pos[Zz]):
@@ -165,7 +165,7 @@ class Simulation:
 		assert('Should not reach here.')
 			 
 	def get_mu_at(self, axis, i, j, k, bg_only=False):
-		'''bg_only is for TF/SF.'''
+		"""bg_only is for TF/SF."""
 		assert(isinstance(i,int) and isinstance(j,int) and isinstance(k,int))
 		pos1 = [i, j, k]
 		mu1 = self.get_mu_at_kernel(pos1, bg_only)
@@ -182,16 +182,16 @@ class Simulation:
 		return (mu1+mu2+mu3+mu4)/4.0  # for the continuity of the tangential component of H at the interface.  See Hwang and Cangellaris, IEEE Microwave and Wireless Components Letters, 11 (4), 2001
 
 	def get_mu_at_kernel(self, pos, bg_only=False):
-		'''bg_only is for TF/SF.'''
+		"""bg_only is for TF/SF."""
 		assert(len(pos)==3)
-		'''First, iterate through the foreground object list, because the foreground objects always
-		have priority to the background objects.'''
+		"""First, iterate through the foreground object list, because the foreground objects always
+		have priority to the background objects."""
 		if not bg_only:
 			for n in xrange(len(self.objList)-1, -1, -1):
 				obj = self.objList[n]
 				if obj.contains(pos[Xx], pos[Yy], pos[Zz]):
 					return obj.get_mu(self.grid.wvlen)
-		'''Next, iterate through the background object list.'''
+		"""Next, iterate through the background object list."""
 		for n in xrange(len(self.bg_objList)-1, -1, -1):
 			obj = self.bg_objList[n]
 			if obj.contains(pos[Xx], pos[Yy], pos[Zz]):

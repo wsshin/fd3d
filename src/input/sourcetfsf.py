@@ -15,7 +15,7 @@ class IncidentE:
 		return self.shape.contains(i,j,k)
 	
 	def get_E_at(self, axis, i, j, k):
-		'''In principle, the E-field value should be determined for a given position, because Ex, 
+		"""In principle, the E-field value should be determined for a given position, because Ex, 
 		Ey, Ez of the same cell are located at different positions.  For example, when the E-field 
 		value at a position (3.5, 1, 2) is requested, Ex of the cell (3, 1, 2) should be returned.
 		Therefore, to retrieve the source value, it seems like a position is sufficient 
@@ -24,7 +24,7 @@ class IncidentE:
 		numbers is not credible.  When the position (3.5, 1, 2) is passed, there is no easy way to
 		decide whether 3.5 is truly 3+(1/2); the result can be different from one CPU architecture
 		to another.
-		Therefore, we do not include the polarization information into the position.'''
+		Therefore, we do not include the polarization information into the position."""
 		if self.is_valid_at(axis, i, j, k):
 			return self.get_E_at_kernel(axis, i, j, k)
 		else:
@@ -34,7 +34,7 @@ class IncidentE:
 		raise NotImplemented
 
 class PolarizedIncidentE(IncidentE):
-	'''IncidentE with a specific polarization'''
+	"""IncidentE with a specific polarization"""
 	def __init__(self, grid, polarization, shape):
 		IncidentE.__init__(self, grid, shape)
 		self.polarization = polarization

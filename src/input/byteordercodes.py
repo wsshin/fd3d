@@ -1,10 +1,10 @@
-''' Byteorder utilities for system - numpy byteorder encoding
+""" Byteorder utilities for system - numpy byteorder encoding
 
 Converts a variety of string codes for little endian, big endian,
 native byte order and swapped byte order to explicit numpy endian
 codes - one of '<' (little endian) or '>' (big endian)
 
-'''
+"""
 
 import sys
 
@@ -18,7 +18,7 @@ aliases = {'little': ('little', '<', 'l', 'le'),
            'swapped': ('swapped', 'S')}
 
 def to_numpy_code(code):
-    ''' Convert various order codings to numpy format
+    """ Convert various order codings to numpy format
     Parameters
     ----------
     code : {'little','big','l','b','le','be','<','>',
@@ -48,7 +48,7 @@ def to_numpy_code(code):
     >>> sc = to_numpy_code('swapped')
     >>> sc == '>' if sys_is_le else sc == '<'
     True
-    '''
+    """
     code = code.lower()
     if code is None:
         return native_code

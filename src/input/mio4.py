@@ -1,5 +1,5 @@
-''' Classes for read / write of matlab (TM) 4 files
-'''
+""" Classes for read / write of matlab (TM) 4 files
+"""
 import sys
 import warnings
 
@@ -62,11 +62,11 @@ order_codes = {
 
 
 class Mat4ArrayReader(MatArrayReader):
-    ''' Class for reading Mat4 arrays
-    '''
+    """ Class for reading Mat4 arrays
+    """
 
     def matrix_getter_factory(self):
-        ''' Read header, return matrix getter '''
+        """ Read header, return matrix getter """
         data = self.read_dtype(self.dtypes['header'])
         header = {}
         header['name'] = self.read_ztstring(int(data['namlen']))
@@ -103,11 +103,11 @@ class Mat4MatrixGetter(MatMatrixGetter):
     is_logical = False
 
     def read_array(self, copy=True):
-        ''' Mat4 read array always uses header dtype and dims
+        """ Mat4 read array always uses header dtype and dims
         copy        - copies array if True
         (buffer is usually read only)
         a_dtype is assumed to be correct endianness
-        '''
+        """
         dt = self.header['dtype']
         dims = self.header['dims']
         num_bytes = dt.itemsize
@@ -151,14 +151,14 @@ class Mat4CharGetter(Mat4MatrixGetter):
 
 
 class MatFile4Reader(MatFileReader):
-    ''' Reader for Mat4 files '''
+    """ Reader for Mat4 files """
     @docfiller
     def __init__(self, mat_stream, *args, **kwargs):
-        ''' Initialize matlab 4 file reader
+        """ Initialize matlab 4 file reader
 
     %(matstream_arg)s
     %(load_args)s
-        '''
+        """
         self._array_reader = Mat4ArrayReader(
             mat_stream,
             None,
@@ -186,12 +186,12 @@ class MatFile4Reader(MatFileReader):
 class Mat4MatrixWriter(MatStreamWriter):
 
     def write_header(self, P=0,  T=0, imagf=0, dims=None):
-        ''' Write header for given data options
+        """ Write header for given data options
         P      - mat4 data type
         T      - mat4 matrix class
         imagf  - complex flag
         dims   - matrix dimensions
-        '''
+        """
         if dims is None:
             dims = self.arr.shape
         header = np.empty((), mdtypes_template['header'])
@@ -261,11 +261,11 @@ class Mat4CharWriter(Mat4MatrixWriter):
 
 
 def matrix_writer_factory(stream, arr, name, oned_as='row'):
-    ''' Factory function to return matrix writer given variable to write
+    """ Factory function to return matrix writer given variable to write
     stream      - file or file-like stream to write to
     arr         - array to write
     name        - name in matlab (TM) workspace
-    '''
+    """
     arr = np.array(arr)
     dtt = arr.dtype.type
     if dtt is np.object_:
@@ -279,7 +279,7 @@ def matrix_writer_factory(stream, arr, name, oned_as='row'):
 
 
 class MatFile4Writer(MatFileWriter):
-    ''' Class for writing matlab 4 format files '''
+    """ Class for writing matlab 4 format files """
     def __init__(self, file_stream, oned_as=None):
         self.file_stream = file_stream
         if oned_as is None:

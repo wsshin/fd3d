@@ -16,12 +16,12 @@ __all__ = ['find_mat_file', 'mat_reader_factory', 'loadmat', 'savemat']
 
 @docfiller
 def find_mat_file(file_name, appendmat=True):
-    ''' Try to find .mat file on system path
+    """ Try to find .mat file on system path
 
     file_name : string
        file name for mat file
     %(append_arg)s
-    '''
+    """
     if appendmat and file_name.endswith(".mat"):
         file_name = file_name[:-4]
     if os.sep in file_name:
@@ -86,7 +86,7 @@ def mat_reader_factory(file_name, appendmat=True, **kwargs):
 
 @docfiller
 def loadmat(file_name,  mdict=None, appendmat=True, **kwargs):
-    ''' Load Matlab(tm) file
+    """ Load Matlab(tm) file
 
     %(file_arg)s
     m_dict : dict, optional
@@ -103,7 +103,7 @@ def loadmat(file_name,  mdict=None, appendmat=True, **kwargs):
     You will need an HDF5 python library to read matlab 7.3 format mat
     files.  Because scipy does not supply one, we do not implement the
     HDF5 / 7.3 interface here.
-    '''
+    """
     MR = mat_reader_factory(file_name, appendmat, **kwargs)
     matfile_dict = MR.get_variables()
     if mdict is not None:

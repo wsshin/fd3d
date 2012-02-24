@@ -1,11 +1,11 @@
-''' Classes for read / write of matlab (TM) 5 files
+""" Classes for read / write of matlab (TM) 5 files
 
 The matfile specification last found here:
 
 http://www.mathworks.com/access/helpdesk/help/pdf_doc/matlab/matfile_format.pdf
 
 (as of December 5 2008)
-'''
+"""
 
 # Small fragments of current code adapted from matfile.py by Heiko
 # Henkelmann
@@ -169,10 +169,10 @@ np_to_mxtypes = {
 
 
 
-''' Before release v7.1 (release 14) matlab (TM) used the system
+""" Before release v7.1 (release 14) matlab (TM) used the system
 default character encoding scheme padded out to 16-bits. Release 14
 and later use Unicode. When saving character data, R14 checks if it
-can be encoded in 7-bit ascii, and saves in that format if so.'''
+can be encoded in 7-bit ascii, and saves in that format if so."""
 
 codecs_template = {
     miUTF8: {'codec': 'utf_8', 'width': 1},
@@ -197,17 +197,17 @@ mx_numbers = (
 
 
 class mat_struct(object):
-    ''' Placeholder for holding read data from structs
+    """ Placeholder for holding read data from structs
 
     We will deprecate this method of holding struct information in a
     future version of scipy, in favor of the recarray method (see
     loadmat docstring)
-    '''
+    """
     pass
 
 
 class MatlabObject(np.ndarray):
-    ''' ndarray Subclass to contain matlab object '''
+    """ ndarray Subclass to contain matlab object """
     def __new__(cls, input_array, classname=None):
         # Input array is an already formed ndarray instance
         # We first cast to be our class type
@@ -224,24 +224,24 @@ class MatlabObject(np.ndarray):
 
 
 class MatlabFunction(np.ndarray):
-    ''' Subclass to signal this is a matlab function '''
+    """ Subclass to signal this is a matlab function """
     def __new__(cls, input_array):
         obj = np.asarray(input_array).view(cls)
 
 
 class MatlabBinaryBlock(object):
-    ''' Class to contain matlab unreadable blocks '''
+    """ Class to contain matlab unreadable blocks """
     def __init__(self, binaryblock, endian):
         self.binaryblock = binaryblock
         self.endian = endian
 
 
 class Mat5ArrayReader(MatArrayReader):
-    ''' Class to get Mat5 arrays
+    """ Class to get Mat5 arrays
 
     Provides element reader functions, header reader, matrix reader
     factory function
-    '''
+    """
 
     def __init__(self,
                  mat_stream,
@@ -301,7 +301,7 @@ class Mat5ArrayReader(MatArrayReader):
         return el
 
     def matrix_getter_factory(self):
-        ''' Returns reader for next matrix at top level '''
+        """ Returns reader for next matrix at top level """
         tag = self.read_dtype(self.dtypes['tag_full'])
         mdtype = tag['mdtype'].item()
         byte_count = tag['byte_count'].item()
@@ -317,10 +317,10 @@ class Mat5ArrayReader(MatArrayReader):
         return getter
 
     def current_getter(self, byte_count):
-        ''' Return matrix getter for current stream position
+        """ Return matrix getter for current stream position
 
         Returns matrix getters at top level and sub levels
-        '''
+        """
         if not byte_count: # an empty miMATRIX can contain no bytes
             return Mat5EmptyMatrixGetter(self)
         af = self.read_dtype(self.dtypes['array_flags'])
@@ -332,7 +332,7 @@ class Mat5ArrayReader(MatArrayReader):
         header['is_global'] = flags_class >> 10 & 1
         header['is_complex'] = flags_class >> 11 & 1
         header['nzmax'] = af['nzmax']
-        ''' Here I am playing with a binary block read of
+        """ Here I am playing with a binary block read of
         untranslatable data. I am not using this at the moment because
         reading it has the side effect of making opposite ending mat
         files unwritable on the round trip.
@@ -345,7 +345,7 @@ class Mat5ArrayReader(MatArrayReader):
                                          header,
                                          af,
                                          byte_count)
-        '''
+        """
         header['dims'] = self.read_element()
         header['name'] = self.read_element().tostring()
         # maybe a dictionary mapping here as a dispatch table
@@ -365,12 +365,12 @@ class Mat5ArrayReader(MatArrayReader):
 
 
 class Mat5ZArrayReader(Mat5ArrayReader):
-    ''' Getter for compressed arrays
+    """ Getter for compressed arrays
 
     Sets up reader for gzipped stream on init, providing wrapper
     for this new sub-stream.
 
-    '''
+    """
     def __init__(self, array_reader, byte_count):
         super(Mat5ZArrayReader, self).__init__(
             cStringIO(zlib.decompress(
@@ -383,10 +383,10 @@ class Mat5ZArrayReader(Mat5ArrayReader):
 
 
 class Mat5MatrixGetter(MatMatrixGetter):
-    ''' Base class for getting Mat5 matrices
+    """ Base class for getting Mat5 matrices
 
     Gets current read information from passed array_reader
-    '''
+    """
 
     def __init__(self, array_reader, header):
         super(Mat5MatrixGetter, self).__init__(array_reader, header)
@@ -400,8 +400,8 @@ class Mat5MatrixGetter(MatMatrixGetter):
 
 
 class Mat5EmptyMatrixGetter(Mat5MatrixGetter):
-    ''' Dummy class to return empty array for empty matrix
-    '''
+    """ Dummy class to return empty array for empty matrix
+    """
     def __init__(self, array_reader):
         self.array_reader = array_reader
         self.mat_stream = array_reader.mat_stream
@@ -508,25 +508,25 @@ class Mat5StructMatrixGetter(Mat5MatrixGetter):
 
 class Mat5ObjectMatrixGetter(Mat5StructMatrixGetter):
     def get_raw_array(self):
-        '''Matlab objects are like structs, with an extra classname field'''
+        """Matlab objects are like structs, with an extra classname field"""
         classname = self.read_element().tostring()
         result = super(Mat5ObjectMatrixGetter, self).get_raw_array()
         return MatlabObject(result, classname)
 
 
 class Mat5FunctionGetter(Mat5ObjectMatrixGetter):
-    ''' Class to provide warning and message string for unreadable
+    """ Class to provide warning and message string for unreadable
     matlab function data
-    '''
+    """
     def get_raw_array(self):
         raise MatReadError('Cannot read matlab functions')
 
 
 class Mat5BinaryBlockGetter(object):
-    ''' Class to read in unreadable binary blocks
+    """ Class to read in unreadable binary blocks
 
     This class could be used to read in matlab functions
-    '''
+    """
 
     def __init__(self,
                  array_reader,
@@ -560,12 +560,12 @@ class Mat5BinaryBlockGetter(object):
 
                
 class MatFile5Reader(MatFileReader):
-    ''' Reader for Mat 5 mat files
+    """ Reader for Mat 5 mat files
     Adds the following attribute to base class
 
     uint16_codec       - char codec to use for uint16 char arrays
                           (defaults to system default codec)
-   '''
+   """
     @docfiller
     def __init__(self,
                  mat_stream,
@@ -577,7 +577,7 @@ class MatFile5Reader(MatFileReader):
                  struct_as_record=None, # default False, for now
                  uint16_codec=None
                  ):
-        '''Initializer for matlab 5 file format reader
+        """Initializer for matlab 5 file format reader
 
     %(matstream_arg)s
     %(load_args)s
@@ -585,7 +585,7 @@ class MatFile5Reader(MatFileReader):
     uint16_codec : {None, string}
         Set codec to use for uint16 char arrays (e.g. 'utf-8').
         Use system default codec if None
-        '''
+        """
         # Deal with deprecations
         if struct_as_record is None:
             struct_as_record = False
@@ -629,7 +629,7 @@ class MatFile5Reader(MatFileReader):
                             'get/set uint16_codec')
 
     def set_dtypes(self):
-        ''' Set dtypes and codecs '''
+        """ Set dtypes and codecs """
         self.dtypes = self.convert_dtypes(mdtypes_template)
         self.class_dtypes = self.convert_dtypes(mclass_dtypes_template)
         codecs = {}
@@ -656,15 +656,15 @@ class MatFile5Reader(MatFileReader):
         return self._array_reader.matrix_getter_factory()
 
     def guess_byte_order(self):
-        ''' Guess byte order.
-        Sets stream pointer to 0 '''
+        """ Guess byte order.
+        Sets stream pointer to 0 """
         self.mat_stream.seek(126)
         mi = self.mat_stream.read(2)
         self.mat_stream.seek(0)
         return mi == 'IM' and '<' or '>'
 
     def file_header(self):
-        ''' Read in mat 5 file header '''
+        """ Read in mat 5 file header """
         hdict = {}
         hdr = self.read_dtype(self.dtypes['file_header'])
         hdict['__header__'] = hdr['description'].item().strip(' \t\n\000')
@@ -675,7 +675,7 @@ class MatFile5Reader(MatFileReader):
 
 
 class Mat5MatrixWriter(MatStreamWriter):
-    ''' Generic matlab matrix writing class '''
+    """ Generic matlab matrix writing class """
     mat_tag = np.zeros((), mdtypes_template['tag_full'])
     mat_tag['mdtype'] = miMATRIX
     default_mclass = None # default class for header writing
@@ -700,7 +700,7 @@ class Mat5MatrixWriter(MatStreamWriter):
         self.file_stream.write(arr.tostring())
 
     def write_element(self, arr, mdtype=None):
-        ''' write tag and data '''
+        """ write tag and data """
         if mdtype is None:
             mdtype = np_to_mtypes[arr.dtype.str[1:]]
         byte_count = arr.size*arr.itemsize
@@ -734,7 +734,7 @@ class Mat5MatrixWriter(MatStreamWriter):
                      is_logical=False,
                      nzmax=0,
                      shape=None):
-        ''' Write header for given data options
+        """ Write header for given data options
         mclass      - mat5 matrix class
         is_global   - True if matrix is global
         is_complex  - True if matrix is complex
@@ -743,7 +743,7 @@ class Mat5MatrixWriter(MatStreamWriter):
         shape : {None, tuple} optional
             directly specify shape if this is not the same as for
             self.arr
-        '''
+        """
         if mclass is None:
             mclass = self.default_mclass
         if shape is None:
@@ -773,7 +773,7 @@ class Mat5MatrixWriter(MatStreamWriter):
         raise NotImplementedError
 
     def make_writer_getter(self):
-        ''' Make writer getter for this stream '''
+        """ Make writer getter for this stream """
         return Mat5WriterGetter(self.unicode_strings,
                                 self.long_field_names,
                                 self.oned_as)
@@ -848,18 +848,18 @@ class Mat5CellWriter(Mat5MatrixWriter):
 
 
 class Mat5BinaryBlockWriter(Mat5MatrixWriter):
-    ''' class to write untranslatable binary blocks '''
+    """ class to write untranslatable binary blocks """
     def write(self):
         # check endian
         # write binary block as is
         pass
 
 class Mat5StructWriter(Mat5CellWriter):
-    ''' class to write matlab structs
+    """ class to write matlab structs
 
     Differs from cell writing class in writing field names,
     and in mx class
-    '''
+    """
     default_mclass = mxSTRUCT_CLASS
 
     def _write_items(self):
@@ -885,11 +885,11 @@ class Mat5StructWriter(Mat5CellWriter):
 
 
 class Mat5ObjectWriter(Mat5StructWriter):
-    ''' class to write matlab objects
+    """ class to write matlab objects
 
     Same as writing structs, except different mx class, and extra
     classname element after header
-    '''
+    """
     default_mclass = mxOBJECT_CLASS
     def write(self):
         self.write_header()
@@ -899,13 +899,13 @@ class Mat5ObjectWriter(Mat5StructWriter):
 
 
 class Mat5WriterGetter(object):
-    ''' Wraps options, provides methods for getting Writer objects '''
+    """ Wraps options, provides methods for getting Writer objects """
     @docfiller
     def __init__(self, 
                  unicode_strings=True, 
                  long_field_names=False,
                  oned_as='column'):
-        ''' Initialize writer getter
+        """ Initialize writer getter
 
         Parameters
         ----------
@@ -913,13 +913,13 @@ class Mat5WriterGetter(object):
            If True, write unicode strings
         %(long_fields)s
         %(oned_as)s
-        '''
+        """
         self.unicode_strings = unicode_strings
         self.long_field_names = long_field_names
         self.oned_as = oned_as
 
     def to_writeable(self, source):
-        ''' Convert input object ``source`` to something we can write
+        """ Convert input object ``source`` to something we can write
 
         Parameters
         ----------
@@ -976,7 +976,7 @@ class Mat5WriterGetter(object):
         True
         >>> mwg.to_writeable({'_a':1}) is None
         True
-        '''
+        """
         if isinstance(source, np.ndarray):
             return source
         if source is None:
@@ -1007,7 +1007,7 @@ class Mat5WriterGetter(object):
         return narr
 
     def matrix_writer_factory(self, stream, arr, name='', is_global=False):
-        ''' Factory function to return matrix writer given variable to write
+        """ Factory function to return matrix writer given variable to write
 
         Parameters
         ----------
@@ -1024,7 +1024,7 @@ class Mat5WriterGetter(object):
         Returns
         -------
         writer : matrix writer object
-        '''
+        """
         # Try to convert things that aren't arrays
         narr = self.to_writeable(arr)
         if narr is None:
@@ -1055,7 +1055,7 @@ class Mat5WriterGetter(object):
 
 
 class MatFile5Writer(MatFileWriter):
-    ''' Class for writing mat5 files '''
+    """ Class for writing mat5 files """
     @docfiller
     def __init__(self, file_stream,
                  do_compression=False,
@@ -1063,7 +1063,7 @@ class MatFile5Writer(MatFileWriter):
                  global_vars=None,
                  long_field_names=False,
                  oned_as=None):
-        ''' Initialize writer for matlab 5 format files 
+        """ Initialize writer for matlab 5 format files 
 
         Parameters
         ----------
@@ -1073,7 +1073,7 @@ class MatFile5Writer(MatFileWriter):
             Names of variables to be marked as global for matlab
         %(long_fields)s
         %(oned_as)s
-        '''
+        """
         super(MatFile5Writer, self).__init__(file_stream)
         self.do_compression = do_compression
         if global_vars:
