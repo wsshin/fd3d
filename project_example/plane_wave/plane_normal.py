@@ -1,3 +1,4 @@
+"""Import modules."""
 from math import floor, ceil 
 from const import *  # constants such as Xx, Yy, Zz, PEC, PMC, Periodic
 from simulation import Simulation
@@ -8,12 +9,12 @@ from object import Object
 from source import PlaneSrc
 from math import cos, pi
 
+"""Specify a finite-difference grid."""
 grid = Grid()
 grid.set_length_unit(1e-9)
 wvlen = 100
 grid.set_wvlen(wvlen)
 
-## Set up dx_prob, dy_prob, dz_prob
 dL = 1.0
 dx0 = dL
 dy0 = dL
@@ -31,16 +32,17 @@ grid.set_BC( (Bloch, Bloch, PEC) )
 
 grid.initialize()
 
-'''The name of Simulation object must be sim.  This is assumed in fd3d.c, so the 
-name should not be changed.'''
-sim = Simulation(grid)
+"""Create an instance of Simulation."""
+sim = Simulation(grid)  # the name of the Simulation instance must be sim, as assumed in fd3d.c
+
+"""Specify basic solver properties."""
 sim.set_BiCG_tol(1e-6)
 
-## Set up objects.
+"""Specify objects."""
 # (No object)
 
 
-## Set up sources.
+"""Set up sources."""
 z_src = 10
 src = PlaneSrc(grid, Yy, Zz, 1, grid.get_N(Xx), grid.get_N(Yy))
 src = src.translate(0, 0, grid.get_N(Zz)/2)
