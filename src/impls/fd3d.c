@@ -614,12 +614,16 @@ PetscErrorCode main(int argc, char **argv)
 		   else solver = bicg;
 		 */
 
+		PetscBool isSymmetric;
+		ierr = MatIsSymmetric(A, 0.0, &isSymmetric); CHKERRQ(ierr);
 		if (gi.krylov_type == QMR) {
-			solver = qmr;
+			if (isSymmetric) {
+				solver = qmrSymmetric;
+			} else {
+				solver = qmr;
+			}
 		} else {
-			PetscBool isSymmetric;
-			ierr = MatIsSymmetric(A, 0.0, &isSymmetric); CHKERRQ(ierr);
-			if (isSymmetric) {  // symmetric
+			if (isSymmetric) {
 				solver = bicgSymmetric;
 			} else {
 				solver = bicg;

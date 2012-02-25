@@ -1252,6 +1252,163 @@ PetscErrorCode qmr(const Mat A, Vec x, const Vec b, const Vec right_precond, con
 	PetscFunctionReturn(0);
 }
 
+
+#undef __FUNCT__
+#define __FUNCT__ "qmrSymmetric_kernel"
+/**
+ * QMR algorithm without look-ahead.  
+ * This is the implementation of Algorithm 3.1 in Freund and Szeto, A Quasi-minimal residual 
+ * squared algorithm for non-Hermitian linear systems, Proc. 1992 Copper Mountain Conf. on 
+ * Iterative Methods.
+ */
+PetscErrorCode qmrSymmetric_kernel(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, GridInfo gi, MonitorIteration monitor)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr;
+
+	/*
+	   Vec y;
+	   ierr = VecDuplicate(x, &y); CHKERRQ(ierr);
+	   ierr = VecCopy(x, y); CHKERRQ(ierr);
+	 */
+
+	Vec r;  // residual for x
+	ierr = VecDuplicate(x, &r); CHKERRQ(ierr);
+	ierr = MatMult(A, x, r); CHKERRQ(ierr);
+	ierr = VecAYPX(r, -1.0, b); CHKERRQ(ierr);  // r = b - A*x
+
+	Vec p;
+	ierr = VecDuplicate(x, &p); CHKERRQ(ierr);
+	ierr = VecCopy(r, p); CHKERRQ(ierr);  // p = r
+
+	PetscReal norm_r, norm_b;
+	ierr = VecNorm(r, NORM_2, &norm_r); CHKERRQ(ierr);
+	ierr = VecNorm(b, NORM_2, &norm_b); CHKERRQ(ierr);
+
+	Vec res;
+	ierr = VecDuplicate(x, &res); CHKERRQ(ierr);
+	ierr = VecCopy(r, res); CHKERRQ(ierr);  // res = r
+
+	PetscReal norm_res = norm_r;
+	PetscReal rel_res = norm_res / norm_b;  // relative residual
+
+	PetscScalar tau = norm_r, theta = 0.0, csq;
+
+	Vec d;
+	ierr = VecDuplicate(x, &d); CHKERRQ(ierr);
+	ierr = VecZeroEntries(d); CHKERRQ(ierr);  // d = 0
+
+	PetscScalar rr;  // r^T * r
+	ierr = VecTDot(r, r, &rr); CHKERRQ(ierr);
+
+	Vec Ap;  // A*p
+	ierr = VecDuplicate(x, &Ap); CHKERRQ(ierr);
+
+	PetscScalar pAp;  // p^T * Ap
+	PetscScalar alpha;  // rr/pAp
+	PetscScalar gamma;  // rr_curr / rr_prev
+
+	/*
+	   PetscReal norm;
+	   ierr = VecNorm(Ap, NORM_2, &norm); CHKERRQ(ierr);
+	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(Ap) = %e\n", norm); CHKERRQ(ierr);
+	   ierr = VecNorm(p, NORM_2, &norm); CHKERRQ(ierr);
+	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(p) = %e\n", norm); CHKERRQ(ierr);
+	   ierr = VecNorm(q, NORM_2, &norm); CHKERRQ(ierr);
+	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(q) = %e\n", norm); CHKERRQ(ierr);
+	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "qAp = %e\n", qAp); CHKERRQ(ierr);
+	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(r) = %e\n", norm_r); CHKERRQ(ierr);
+	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(b) = %e\n", norm_b); CHKERRQ(ierr);
+	 */
+	PetscInt num_iter;
+	for (num_iter = 0; (max_iter <= 0 || num_iter < max_iter) && rel_res > tol; ++num_iter) {
+		if (monitor != PETSC_NULL) {
+			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+		}
+		ierr = MatMult(A, p, Ap); CHKERRQ(ierr);  // Ap = A*p
+		//ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(r) = %e\n", norm_r); CHKERRQ(ierr);
+		/*
+		   ierr = VecNorm(Ap, NORM_2, &norm); CHKERRQ(ierr);
+		   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(Ap) = %e\n", norm); CHKERRQ(ierr);
+		 */
+		ierr = VecTDot(p, Ap, &pAp); CHKERRQ(ierr);  // pAp = p^T * Ap
+		/*
+		   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "pAp = %e\n", pAp); CHKERRQ(ierr);
+		 */
+		alpha = rr / pAp;
+
+		ierr = VecAXPY(r, -alpha, Ap); CHKERRQ(ierr);  // r = r - alpha * Ap
+
+		ierr = VecScale(d, theta*theta); CHKERRQ(ierr);  // d(n) = theta(n-1)^2 * d(n-1)
+
+		ierr = VecNorm(r, NORM_2, &norm_r); CHKERRQ(ierr);
+		theta = norm_r/tau;
+		csq = 1.0 / (1.0 + theta*theta);
+		//csq = 1.0/(theta*theta);
+		tau *= (theta * PetscSqrtScalar(csq));
+
+		ierr = VecAXPY(d, alpha, p); CHKERRQ(ierr);  // d(n) = theta(n-1)^2 * d(n-1) + alpha(n-1) * p(n-1)
+		ierr = VecScale(d, csq); CHKERRQ(ierr);  // d(n) = c(n)^2 * theta(n-1)^2 * d(n-1) + c(n)^2 * alpha(n-1) * p(n-1)
+
+		ierr = VecAXPY(x, 1.0, d); CHKERRQ(ierr);  // x = x + d
+
+		gamma = rr;
+		ierr = VecTDot(r, r, &rr); CHKERRQ(ierr);  // rr = r^T * r
+		gamma = rr / gamma;  // gamma = rr_curr / rr_prev
+
+
+		ierr = VecAYPX(p, gamma, r); CHKERRQ(ierr);  // p = r + gamma * p
+
+		/** Since the residual vector is not a byproduct of the QMR iteration, we explicitly
+		  evaluate the residual vector. */
+		ierr = MatMult(A, x, res); CHKERRQ(ierr);
+		ierr = VecAYPX(res, -1.0, b); CHKERRQ(ierr);  // r = b - A*x
+		ierr = VecNorm(res, NORM_2, &norm_res); CHKERRQ(ierr);
+
+		rel_res = norm_res / norm_b;
+		//rel_res = norm_r / norm_b;
+
+		/*
+		   ierr = VecNorm(Ap, NORM_2, &norm); CHKERRQ(ierr);
+		   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nnorm(Ap) = %e\n", norm); CHKERRQ(ierr);
+		   ierr = VecNorm(q, NORM_2, &norm); CHKERRQ(ierr);
+		   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(q) = %e\n", norm); CHKERRQ(ierr);
+		   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "qAp = %e\n", qAp); CHKERRQ(ierr);
+		   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(r) = %e\n", norm_r); CHKERRQ(ierr);
+		 */
+	}
+	if (monitor != PETSC_NULL) {
+		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+	}
+
+	//ierr = VecDestroy(&y); CHKERRQ(ierr);
+	ierr = VecDestroy(&r); CHKERRQ(ierr);
+	ierr = VecDestroy(&p); CHKERRQ(ierr);
+	ierr = VecDestroy(&d); CHKERRQ(ierr);
+	ierr = VecDestroy(&res); CHKERRQ(ierr);
+	ierr = VecDestroy(&Ap); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+
+
+
+#undef __FUNCT__
+#define __FUNCT__ "qmrSymmetric"
+PetscErrorCode qmrSymmetric(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, GridInfo gi)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr;
+
+	if (gi.verbose_level >= VBMedium) {
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "algorithm: QMR for symmetric matrices\n"); CHKERRQ(ierr);
+	}
+
+	ierr = qmrSymmetric_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, gi, monitorAll);
+
+	PetscFunctionReturn(0);
+}
+
 #undef __FUNCT__
 #define __FUNCT__ "testOrthogonal"
 PetscErrorCode testOrthogonal(GridInfo gi)
