@@ -140,6 +140,32 @@ PetscErrorCode set_sparam_mu_at(PetscScalar *sparam_mu_value, Axis axis, const P
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "set_dparam_mu_at"
+/**
+ * set_dparam_mu_at
+ * -------------
+ * Set an element of the vector of d-parameter factors (dy*dz/dx, dz*dx/dy, dx*dy/dz) for mu.
+ */
+PetscErrorCode set_dparam_mu_at(PetscScalar *dparam_mu_value, Axis axis, const PetscInt ind[], GridInfo *gi)
+{
+	PetscFunctionBegin;
+
+	Axis axis0 = axis;
+	Axis axis1 = (Axis)((axis+1) % Naxis);
+	Axis axis2 = (Axis)((axis+2) % Naxis);
+
+	PetscInt ind0 = ind[axis0];
+	PetscInt ind1 = ind[axis1];
+	PetscInt ind2 = ind[axis2];
+
+	/** When w = x, y, z, mu_w is defined at Hw points.  Therefore mu_w is at the 
+	  primary grid point in w axis, and at dual grid points in the other two axes. */
+	*dparam_mu_value = gi->d_dual[axis1][ind1] * gi->d_dual[axis2][ind2] / gi->d_prim[axis0][ind0];
+
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "set_eps_at"
 /**
  * set_eps_at
@@ -251,6 +277,28 @@ PetscErrorCode set_sparam_eps_at(PetscScalar *sparam_eps_value, Axis axis, const
 	/** When w = x, y, z, eps_w is defined at Ew points.  Therefore eps_w is at the 
 	  dual grid point in w axis, and at primary grid points in the other two axes. */
 	*sparam_eps_value = gi->s_prim[axis1][ind[axis1]] * gi->s_prim[axis2][ind[axis2]] / gi->s_dual[axis0][ind[axis0]];
+
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "set_dparam_eps_at"
+/**
+ * set_dparam_eps_at
+ * -------------
+ * Set an element of the vector of d-parameter factors (dy*dz/dx, dz*dx/dy, dx*dy/dz) for eps.
+ */
+PetscErrorCode set_dparam_eps_at(PetscScalar *dparam_eps_value, Axis axis, const PetscInt ind[], GridInfo *gi)
+{
+	PetscFunctionBegin;
+
+	Axis axis0 = axis;
+	Axis axis1 = (Axis)((axis+1) % Naxis);
+	Axis axis2 = (Axis)((axis+2) % Naxis);
+
+	/** When w = x, y, z, eps_w is defined at Ew points.  Therefore eps_w is at the 
+	  dual grid point in w axis, and at primary grid points in the other two axes. */
+	*dparam_eps_value = gi->d_prim[axis1][ind[axis1]] * gi->d_prim[axis2][ind[axis2]] / gi->d_dual[axis0][ind[axis0]];
 
 	PetscFunctionReturn(0);
 }

@@ -184,7 +184,8 @@ PetscErrorCode main(int argc, char **argv)
 	Vec b, right_precond;
 
 	/** Create A and b according to the options. */
-	ierr = create_A_and_b(&A, &b, &right_precond, &HE, gi, &ts); CHKERRQ(ierr);
+	//ierr = create_A_and_b(&A, &b, &right_precond, &HE, gi, &ts); CHKERRQ(ierr);
+	ierr = create_A_and_b2(&A, &b, &right_precond, &HE, gi, &ts); CHKERRQ(ierr);
 
 	/*
 	   if (gi.pml_type == SCPML) {
