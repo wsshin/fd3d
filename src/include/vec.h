@@ -39,6 +39,13 @@ PetscErrorCode set_mu_at(PetscScalar *mu_value, Axis axis, const PetscInt ind[],
 PetscErrorCode set_sparam_mu_at(PetscScalar *sparam_mu_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
+ * set_dparam_mu_at
+ * -------------
+ * Set an element of the vector of d-parameter factors (dy*dz/dx, dz*dx/dy, dx*dy/dz) for mu.
+ */
+PetscErrorCode set_dparam_mu_at(PetscScalar *dparam_mu_value, Axis axis, const PetscInt ind[], GridInfo *gi);
+
+/**
  * set_eps_at
  * -------------
  * Set an element of the vector of the eps (permittivity) compatible with matrices. 
@@ -66,6 +73,13 @@ PetscErrorCode set_epsMask_at(PetscScalar *epsMask_value, Axis axis, const Petsc
  * Set an element of the vector of s-parameter factors for eps.
  */
 PetscErrorCode set_sparam_eps_at(PetscScalar *sparam_eps_value, Axis axis, const PetscInt ind[], GridInfo *gi);
+
+/**
+ * set_dparam_eps_at
+ * -------------
+ * Set an element of the vector of d-parameter factors (dy*dz/dx, dz*dx/dy, dx*dy/dz) for eps.
+ */
+PetscErrorCode set_dparam_eps_at(PetscScalar *dparam_eps_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
  * set_sqrt_at
