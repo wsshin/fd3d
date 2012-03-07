@@ -26,6 +26,7 @@
 #-fd3d_pc eps
 
 #-fd3d_use_ksp
+#-ksp_view
 #-ksp_type bicg
 #-ksp_type cg
 #-ksp_cg_type symmetric
