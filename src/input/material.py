@@ -9,10 +9,13 @@ class Material:
 		self.eps = eps
 		self.mu = mu
 
-	def get_eps(self, omega):
+	def get_name(self):
+		return self.name
+
+	def get_eps(self):
 		return self.eps
 
-	def get_mu(self, omega):
+	def get_mu(self):
 		return self.mu
 	
 	def get_color_index(self):

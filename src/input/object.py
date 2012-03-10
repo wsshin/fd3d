@@ -2,12 +2,15 @@ class Object:
 	def __init__(self, shape, material):
 		self.shape = shape
 		self.material = material
-	
-	def get_eps(self, wvlen):
-		return self.material.get_eps(wvlen)
 
-	def get_mu(self, wvlen):
-		return self.material.get_mu(wvlen)
+	def get_material(self):
+		return self.material
+	
+	def get_eps(self):
+		return self.material.get_eps()
+
+	def get_mu(self):
+		return self.material.get_mu()
 	
 	def get_color_index(self):
 		return self.material.get_color_index()

@@ -16,13 +16,15 @@ class Simulation:
 		self.sparam = Sparam(grid, grading)
 		self.objList = []
 		self.bg_objList = []  # background object list for TF/SF
+		self.matSet = set()  # set of materials
 		self.srcList = []
 		self.tol = 1e-6
 		self.max_iter = -1
 
 		box = Box(grid)
 		box_vac = Object(box, Vac)
-		self.bg_objList.append(box_vac)
+		#self.bg_objList.append(box_vac)
+		self.append_bg_object(box_vac)
 		
 		# PMLs
 		"""The following object for the PML is only for visualization.  PML is functional without
@@ -76,9 +78,11 @@ class Simulation:
 	
 	def append_bg_object(self, obj):
 		self.bg_objList.append(obj)
+		self.matSet.add(obj.get_material())
 	
 	def append_object(self, obj):
 		self.objList.append(obj)
+		self.matSet.add(obj.get_material())
 	
 	def append_source(self, src):
 		self.srcList.append(src)
@@ -156,12 +160,12 @@ class Simulation:
 			for n in xrange(len(self.objList)-1, -1, -1):
 				obj = self.objList[n]
 				if obj.contains(pos[Xx], pos[Yy], pos[Zz]):
-					return obj.get_eps(self.grid.wvlen)
+					return obj.get_eps()
 		"""Next, iterate through the background object list."""
 		for n in xrange(len(self.bg_objList)-1, -1, -1):
 			obj = self.bg_objList[n]
 			if obj.contains(pos[Xx], pos[Yy], pos[Zz]):
-				return obj.get_eps(self.grid.wvlen)
+				return obj.get_eps()
 		assert('Should not reach here.')
 			 
 	def get_mu_at(self, axis, i, j, k, bg_only=False):
@@ -190,12 +194,12 @@ class Simulation:
 			for n in xrange(len(self.objList)-1, -1, -1):
 				obj = self.objList[n]
 				if obj.contains(pos[Xx], pos[Yy], pos[Zz]):
-					return obj.get_mu(self.grid.wvlen)
+					return obj.get_mu()
 		"""Next, iterate through the background object list."""
 		for n in xrange(len(self.bg_objList)-1, -1, -1):
 			obj = self.bg_objList[n]
 			if obj.contains(pos[Xx], pos[Yy], pos[Zz]):
-				return obj.get_mu(self.grid.wvlen)
+				return obj.get_mu()
 		assert('Should not reach here.')
 	
 	def get_src_at(self, polarization, i, j, k):
@@ -254,6 +258,7 @@ class Simulation:
 		print 'BiCG maximum # of iterations:', self.get_BiCG_max_iter()
 		print 'normalized wavelength:', self.get_wvlen()
 		print 'normalized omega:', self.get_omega()
+		print 'eV:', self.grid.get_eV()
 		print 'k_Bloch:', [self.get_k_Bloch(Xx), self.get_k_Bloch(Yy), self.get_k_Bloch(Zz)]
 		print 'exp(-ikL):', [self.get_exp_neg_ikL(Xx), self.get_exp_neg_ikL(Yy), self.get_exp_neg_ikL(Zz)]
 		print 'BC: [[' + BCName[self.get_BC(Xx,Neg)] + ', ' + BCName[self.get_BC(Xx,Pos)] + ']; [' + BCName[self.get_BC(Yy,Neg)] + ', ' + BCName[self.get_BC(Yy,Pos)] + ']; [' + BCName[self.get_BC(Zz,Neg)] + ', ' + BCName[self.get_BC(Zz,Pos)] + ']]'
@@ -289,6 +294,10 @@ class Simulation:
 			for n in xrange(self.get_N(axis)):
 				print self.get_s_dual(axis, n),
 			print ']'
+		print
+		print 'materials:'
+		for mat in self.matSet:
+			print mat.get_name(), ': eps = ', mat.get_eps(), ', mu = ', mat.get_mu()
 		print
 		if material_probe==None:
 			material_probe = [self.get_N(Xx)/2, self.get_N(Yy)/2, self.get_N(Zz)/2]
