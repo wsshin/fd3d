@@ -335,6 +335,38 @@ PetscErrorCode sqrtVec(Vec vec, GridInfo gi)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "set_complementMask_at"
+/**
+ * set_complementMask_at
+ * ---------------------
+ * Replace an element of the vector with 1.0 if the element is zero, and 0.0 otherwise.
+ */
+PetscErrorCode set_complementMask_at(PetscScalar *value, Axis axis, const PetscInt ind[], GridInfo *gi)
+{
+	PetscFunctionBegin;
+	*value = (*value==0.0 ? 1.0 : 0.0);
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "complementMaskVec"
+/**
+ * complementMaskVec
+ * -----------------
+ * For a given vector, replace every element of the vector with 1.0 if the element is zero, and 0.0 
+ * otherwise.
+ */
+PetscErrorCode complementMaskVec(Vec vec, GridInfo gi)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr; 
+
+	ierr = setFieldArray(vec, set_complementMask_at, gi); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "set_dLe_at"
 /**
  * set_dLe_at

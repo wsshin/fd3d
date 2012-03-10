@@ -164,4 +164,8 @@ PetscErrorCode create_A_and_b(Mat *A, Vec *b, Vec *right_precond, Mat *HE, GridI
 
 PetscErrorCode create_A_and_b2(Mat *A, Vec *b, Vec *right_precond, Mat *HE, GridInfo gi, TimeStamp *ts);
 
+PetscErrorCode create_A_and_b3(Mat *A, Vec *b, Vec *right_precond, Mat *HE, GridInfo gi, TimeStamp *ts);
+
+PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, GridInfo gi, TimeStamp *ts);
+
 #endif

@@ -13,8 +13,6 @@ typedef struct {
 
 typedef PetscErrorCode (*FunctionSetComponentAt)(PetscScalar *component, Axis axis, const PetscInt ind[], GridInfo *gi);
 
-PetscErrorCode setFieldArray(Vec field, FunctionSetComponentAt setComponentAt, GridInfo gi);
-
 PetscErrorCode createFieldArray(Vec *field, FunctionSetComponentAt setComponentAt, GridInfo gi);
 
 /**
@@ -82,18 +80,19 @@ PetscErrorCode set_sparam_eps_at(PetscScalar *sparam_eps_value, Axis axis, const
 PetscErrorCode set_dparam_eps_at(PetscScalar *dparam_eps_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
- * set_sqrt_at
- * -------------
- * Replace an element of the vector with the sqrt of it.
- */
-PetscErrorCode set_sqrt_at(PetscScalar *value, Axis axis, const PetscInt ind[], GridInfo *gi);
-
-/**
  * sqrtVec
  * -------------
  * For a given vector, replace every element of the vector with the sqrt of it.
  */
 PetscErrorCode sqrtVec(Vec vec, GridInfo gi);
+
+/**
+ * complementMaskVec
+ * -----------------
+ * For a given vector, replace every element of the vector with 1.0 if the element is zero, and 0.0 
+ * otherwise.
+ */
+PetscErrorCode complementMaskVec(Vec vec, GridInfo gi);
 
 /**
  * set_dLe_at

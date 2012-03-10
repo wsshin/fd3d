@@ -1224,6 +1224,84 @@ PetscErrorCode createGD2(Mat *GD, GridInfo gi)
 	PetscFunctionReturn(0);
 }
 
+
+#undef __FUNCT__
+#define __FUNCT__ "createGD3"
+/**
+ * createGD3
+ * -------
+ * Create the matrix GD, the grad(eps^-2 div) operator on E fields.
+ */
+PetscErrorCode createGD3(Mat *GD, GridInfo gi)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr;
+
+	/** Set up the matrix DivE, the divergence operator on E fields. */
+	Mat DivE;
+	ierr = createDivE(&DivE, gi); CHKERRQ(ierr);
+
+	/*
+	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nDivE\n"); CHKERRQ(ierr);
+	   ierr = MatView(DivE, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
+	 */
+
+	/** Set up the matrix EGrad, the gradient operator generating E fields. */
+	Mat EGrad;
+	ierr = createEGrad(&EGrad, gi); CHKERRQ(ierr);
+
+	/** Set the inverse of the permittivity vector at nodes, and left-scale DivE by invEpsNode. */
+	Vec invEps2Node;
+	//ierr = create_epsNode(&invEps2Node, gi); CHKERRQ(ierr);
+	ierr = createFieldArray(&invEps2Node, set_epsNode_at, gi); CHKERRQ(ierr);
+	ierr = VecPointwiseMult(invEps2Node, invEps2Node, invEps2Node); CHKERRQ(ierr);
+	ierr = VecReciprocal(invEps2Node); CHKERRQ(ierr);
+	ierr = MatDiagonalScale(DivE, invEps2Node, PETSC_NULL); CHKERRQ(ierr);
+	ierr = VecDestroy(&invEps2Node); CHKERRQ(ierr);
+
+	/*
+	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nEGrad\n"); CHKERRQ(ierr);
+	   ierr = MatView(EGrad, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
+	 */
+
+	/** Create the matrix GD. */
+	/** Below, 11 is the maximum number of nonzero elements in a diagonal portion of 
+	  a local submatrix. e.g., if GD is 9-by-9 and distributed among 3 processors, 
+	  entire row (0,1,2) compose a submatrix in processsor 0, and row (3,4,5) in 
+	  processor 1, row (6,7,8) in processor 2.  In processor 1, the diagonal portion 
+	  means 3-by-3 square matrix at the diagonal, which is composed of row (3,4,5) and 
+	  column (3,4,5).  Each row of GD corresponds to one of Ex, Ey, Ez component of 
+	  some cell in the grid.
+
+	  When GD is multiplied to a vector x, which has 3*Nx*Ny*Nz E field components, a 
+	  row of GD generates an output E field component out of 11 input E field 
+	  components; each output E field component is calculated as the gradient between the 
+	  scalar potentials at two nodal points, and each scalar potential value is calculated 
+	  as the divergence at a point, which involves 6 E field components.  So, the output E 
+	  field component is calculated out of 6 + 6 input E field components, but one component
+	  is shared between the two sets of 6 components, and therefore the output E field 
+	  component comes from 6 + 6 - 1 = 11 input E field components.
+
+	  If the cell containing the output E field component is in interior of a local 
+	  portion of the Yee's grid, then all 11 input E field components can be in the diagonal
+	  portion of a local submatrix.
+
+	  On the other hand, if the cell is at a boundary of a local grid, then some of 11 
+	  input E field components can lie outside the local grid.  It is obivous that 3 components
+	  that are in the same cell as the output E field component are guaranteed to be in the same
+	  local grid, but the rest 11 - 3 = 8 components can lie outside.  Therefore 8 input E field 
+	  components can be in the off-diagonal portion of the submatrix. */
+
+	/** Set up the matrix GD. */
+	ierr = MatMatMult(EGrad, DivE, MAT_INITIAL_MATRIX, 11.0/(2.0+6.0), GD); CHKERRQ(ierr); // GD = EGrad*invEpsNode*DivE
+	//ierr = MatMatMult(CH, HE, MAT_INITIAL_MATRIX, PETSC_DEFAULT, GD); CHKERRQ(ierr); // GD = CH*invMu*CE
+
+	/** Destroy matrices and vectors. */
+	ierr = MatDestroy(&DivE); CHKERRQ(ierr);
+	ierr = MatDestroy(&EGrad); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
 #undef __FUNCT__
 #define __FUNCT__ "createDG"
 /**
@@ -1485,7 +1563,7 @@ PetscErrorCode create_A_and_b(Mat *A, Vec *b, Vec *right_precond, Mat *HE, GridI
 		ierr = VecDestroy(&sparamEps); CHKERRQ(ierr);
 	}
 	//ierr = create_epsMask(&epsMask, gi); CHKERRQ(ierr);  // to handle PEC objects
-	ierr = createFieldArray(&epsMask, set_epsMask_at, gi); CHKERRQ(ierr);
+	ierr = createFieldArray(&epsMask, set_epsMask_at, gi); CHKERRQ(ierr);  // to handle PEC objects
 	ierr = updateTimeStamp(VBDetail, ts, "eps vector", gi); CHKERRQ(ierr);
 
 
@@ -1720,7 +1798,10 @@ PetscErrorCode create_A_and_b(Mat *A, Vec *b, Vec *right_precond, Mat *HE, GridI
 	PetscFunctionReturn(0);
 }
 
-
+/**
+ * Modify create_A_and_b() so that it reflects the effect of the nonuniform grid into eps.
+ * This makes the UPML matrix symmetric even on a nonuniform grid.
+ */
 #undef __FUNCT__
 #define __FUNCT__ "create_A_and_b2"
 PetscErrorCode create_A_and_b2(Mat *A, Vec *b, Vec *right_precond, Mat *HE, GridInfo gi, TimeStamp *ts)
@@ -1761,7 +1842,7 @@ PetscErrorCode create_A_and_b2(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 		ierr = VecDestroy(&dparamEps); CHKERRQ(ierr);
 	}
 	//ierr = create_epsMask(&epsMask, gi); CHKERRQ(ierr);  // to handle PEC objects
-	ierr = createFieldArray(&epsMask, set_epsMask_at, gi); CHKERRQ(ierr);
+	ierr = createFieldArray(&epsMask, set_epsMask_at, gi); CHKERRQ(ierr);  // to handle PEC objects
 	ierr = updateTimeStamp(VBDetail, ts, "eps vector", gi); CHKERRQ(ierr);
 
 
@@ -1998,3 +2079,563 @@ PetscErrorCode create_A_and_b2(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 	PetscFunctionReturn(0);
 }
 
+
+/**
+ * Modify create_A_and_b() so that it add the continuity equation only where J = 0.
+ */
+#undef __FUNCT__
+#define __FUNCT__ "create_A_and_b3"
+PetscErrorCode create_A_and_b3(Mat *A, Vec *b, Vec *right_precond, Mat *HE, GridInfo gi, TimeStamp *ts)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr;
+
+	Vec eps, mu, epsMask; 
+	Vec inverse;  // store various inverse vectors
+	Vec left_precond, precond;
+	Mat CE, CH;  // curl operators on E and H
+	Mat CHE; 
+
+	if (gi.verbose_level >= VBMedium) {
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nCreate the matrix for %s with %s, preconditioned by %s.\n", FieldTypeName[gi.x_type], PMLTypeName[gi.pml_type], PCTypeName[gi.pc_type]); CHKERRQ(ierr);
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "The matrix is %s, continuity eq %s", (gi.is_symmetric ? "symmetric":"non-symmetric"), (gi.add_conteq ? "added":"not added")); CHKERRQ(ierr);
+		if (gi.add_conteq) {
+			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, " with factor %f", gi.factor_conteq); CHKERRQ(ierr);
+		}
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, ".\n"); CHKERRQ(ierr);
+	}
+
+	ierr = VecDuplicate(gi.vecTemp, &inverse); CHKERRQ(ierr);
+
+	/** Stretch gi.d_prim and gi.d_dual by gi.s_prim and gi.s_dual. */
+	if (gi.pml_type == SCPML) {
+		ierr = stretch_d(&gi); CHKERRQ(ierr);
+	}
+
+	/** Create the permittivity vector. */
+	//ierr = create_eps(&eps, gi); CHKERRQ(ierr);
+	ierr = createFieldArray(&eps, set_eps_at, gi); CHKERRQ(ierr);
+	if (gi.pml_type == UPML) {
+		Vec sparamEps;
+		//ierr = create_sparamEps(&sparamEps, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&sparamEps, set_sparam_eps_at, gi); CHKERRQ(ierr);
+		ierr = VecPointwiseMult(eps, eps, sparamEps); CHKERRQ(ierr);
+		ierr = VecDestroy(&sparamEps); CHKERRQ(ierr);
+	}
+	//ierr = create_epsMask(&epsMask, gi); CHKERRQ(ierr);  // to handle PEC objects
+	ierr = createFieldArray(&epsMask, set_epsMask_at, gi); CHKERRQ(ierr);  // to handle PEC objects
+	ierr = updateTimeStamp(VBDetail, ts, "eps vector", gi); CHKERRQ(ierr);
+
+
+	/** Create the permeability vector. */
+	//ierr = create_mu(&mu, gi); CHKERRQ(ierr);
+	ierr = createFieldArray(&mu, set_mu_at, gi); CHKERRQ(ierr);
+	if (gi.pml_type == UPML) {
+		Vec sparamMu;
+		//ierr = create_sparamMu(&sparamMu, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&sparamMu, set_sparam_mu_at, gi); CHKERRQ(ierr);
+		ierr = VecPointwiseMult(mu, mu, sparamMu); CHKERRQ(ierr);
+		ierr = VecDestroy(&sparamMu); CHKERRQ(ierr);
+	}
+	ierr = updateTimeStamp(VBDetail, ts, "mu vector", gi); CHKERRQ(ierr);
+
+	/** Set up the matrix CE, the curl operator on E fields. */
+	ierr = createCE(&CE, gi, PETSC_TRUE); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VBDetail, ts, "CE matrix", gi); CHKERRQ(ierr);
+
+	/** Set up the matrix CH, the curl operator on H fields. */
+	ierr = createCH(&CH, gi, PETSC_TRUE); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VBDetail, ts, "CH matrix", gi); CHKERRQ(ierr);
+
+	if (gi.x_type == Htype) {
+		Mat mat_temp;
+		Vec vec_temp;
+
+		mat_temp = CE; CE = CH; CH = mat_temp;
+		vec_temp = eps; eps = mu; mu = vec_temp;
+	}
+
+	/** Set up the matrix HE, the operator giving H fields from E fields. */
+	*HE = CE;
+	ierr = VecSet(inverse, 1.0); CHKERRQ(ierr);
+	ierr = VecPointwiseDivide(inverse, inverse, mu); CHKERRQ(ierr);
+	ierr = MatDiagonalScale(*HE, inverse, PETSC_NULL); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VBDetail, ts, "HE matrix", gi); CHKERRQ(ierr);
+
+	/** Create the matrix CHE, the curl(mu^-1 curl) operator. */
+	ierr = createCHE(&CHE, CH, *HE, gi); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VBDetail, ts, "CHE matrix", gi); CHKERRQ(ierr);
+	ierr = MatDestroy(&CH); CHKERRQ(ierr);
+
+	if (!gi.add_conteq) {
+		/** Below, isn't *A = CHE the same as A = &CHE?  No.  Remember that A is a return value.  
+		  When this function is called, we do:
+		  Mat B;
+		  ...
+		  ierr = create_XXX_A_YYY(&B, ...); CHKERRQ(ierr);
+		  The intension of this function call is to fill the memory pointed by &B. *A = CHE fulfills 
+		  this intension.
+		  On the other hand, if the below line is A = &CHE, it is nothing but changing the value of 
+		  the pointer variable A from &B to &CHE.  Therefore nothing is returned to B. */
+		*A = CHE;
+
+		/** Create b. */
+		//ierr = create_jSrc(b, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(b, set_src_at, gi); CHKERRQ(ierr);
+		ierr = VecScale(*b, -PETSC_i*gi.omega); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VBDetail, ts, "b vector", gi); CHKERRQ(ierr);
+	} else {  // currently, add_conteq only works for x_type == Etype
+		ierr = createAtemplate(A, gi); CHKERRQ(ierr);
+		ierr = MatAXPY(*A, 1.0, CHE, SUBSET_NONZERO_PATTERN); CHKERRQ(ierr);
+		ierr = MatDestroy(&CHE); CHKERRQ(ierr);
+
+		/** Create the gradient-divergence operator. */
+		Mat GD;
+		ierr = createGD(&GD, gi); CHKERRQ(ierr);
+		//ierr = createGD2(&GD, gi); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VBDetail, ts, "GD matrix", gi); CHKERRQ(ierr);
+
+		/** Create b. */
+		Vec b_aug;
+		ierr = VecDuplicate(gi.vecTemp, &b_aug); CHKERRQ(ierr);
+		//ierr = create_jSrc(b, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(b, set_src_at, gi); CHKERRQ(ierr);
+		ierr = VecCopy(*b, b_aug); CHKERRQ(ierr);
+		ierr = VecScale(b_aug, gi.factor_conteq*PETSC_i/gi.omega); CHKERRQ(ierr);
+		ierr = VecScale(*b, -PETSC_i*gi.omega); CHKERRQ(ierr);
+		ierr = MatMult(GD, b_aug, gi.vecTemp); CHKERRQ(ierr);
+		ierr = complementMaskVec(gi.vecTemp, gi); CHKERRQ(ierr);
+		ierr = VecDestroy(&b_aug); CHKERRQ(ierr);  // b_aug is not added to b, since it is masked out
+		ierr = updateTimeStamp(VBDetail, ts, "b vector", gi); CHKERRQ(ierr);
+
+		ierr = MatDiagonalScale(GD, gi.vecTemp, eps); CHKERRQ(ierr);
+
+		ierr = MatAXPY(*A, gi.factor_conteq, GD, SUBSET_NONZERO_PATTERN); CHKERRQ(ierr);
+		ierr = MatDestroy(&GD); CHKERRQ(ierr);
+	}
+
+	ierr = MatDiagonalScale(*A, epsMask, PETSC_NULL); CHKERRQ(ierr);
+	ierr = VecPointwiseMult(*b, epsMask, *b); CHKERRQ(ierr);
+	if (!gi.solve_eigen) {
+		Vec negW2Eps = eps;
+		ierr = VecScale(negW2Eps, -gi.omega*gi.omega); CHKERRQ(ierr);
+		ierr = MatDiagonalSet(*A, negW2Eps, ADD_VALUES); CHKERRQ(ierr);
+	}
+	ierr = updateTimeStamp(VBDetail, ts, "A matrix", gi); CHKERRQ(ierr);
+
+	/** Scale the matrix HE. */
+	if (gi.x_type == Etype) {
+		ierr = MatScale(*HE, -1/gi.omega/PETSC_i); CHKERRQ(ierr);  // HE = [(-i*omega)^-1] * invMu*CH
+	} else {
+		ierr = MatScale(*HE, 1/gi.omega/PETSC_i); CHKERRQ(ierr);  // HE = [(i*omega)^-1] * invEps * CH, where HE is in fact EH
+	}
+	ierr = updateTimeStamp(VBDetail, ts, "HE matrix scaling", gi); CHKERRQ(ierr);
+
+	/** Create the left and right preconditioner. */
+	/** Set the left preconditioner. */
+	ierr = VecDuplicate(gi.vecTemp, &left_precond); CHKERRQ(ierr);
+	ierr = VecSet(left_precond, 1.0); CHKERRQ(ierr);
+
+	/** Set the right preconditioner. */
+	ierr = VecDuplicate(gi.vecTemp, right_precond); CHKERRQ(ierr);
+	ierr = VecSet(*right_precond, 1.0); CHKERRQ(ierr);
+
+	if (gi.is_symmetric) {  // currently, is_symmetric only works for x_type == Etype
+		/** original eq: A0 x = b.  The matrix 
+		  diag(1/sqrt(Epmc)) diag(sqrt(LS)) A0 diag(1/sqrt(LS)) diag(sqrt(Epmc))
+		  is symmetric. */
+
+		/** Calculate the diagonal matrix to be multiplied to the left and right of the 
+		  matrix A for symmetrizing A. */
+		Vec sqrtLS, dS;
+		//ierr = create_dLf(&sqrtLS, Etype, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&sqrtLS, set_dLe_at, gi); CHKERRQ(ierr);
+		//ierr = create_dSf(&dS, Etype, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&dS, set_dSe_at, gi); CHKERRQ(ierr);
+		ierr = VecPointwiseMult(sqrtLS, sqrtLS, dS); CHKERRQ(ierr);
+		ierr = VecDestroy(&dS); CHKERRQ(ierr);
+		ierr = sqrtVec(sqrtLS, gi); CHKERRQ(ierr);
+
+		ierr = VecPointwiseMult(*right_precond, *right_precond, sqrtLS); CHKERRQ(ierr);
+		ierr = VecDestroy(&sqrtLS); CHKERRQ(ierr);
+
+		Vec sqrtScaleEpmc;
+		//ierr = create_scaleEpmc(&sqrtScaleEpmc, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&sqrtScaleEpmc, set_scale_Epmc_at, gi); CHKERRQ(ierr);
+		ierr = sqrtVec(sqrtScaleEpmc, gi); CHKERRQ(ierr);
+
+		ierr = VecPointwiseDivide(*right_precond, *right_precond, sqrtScaleEpmc); CHKERRQ(ierr);
+		ierr = VecDestroy(&sqrtScaleEpmc); CHKERRQ(ierr);
+		ierr = VecPointwiseDivide(left_precond, left_precond, *right_precond); CHKERRQ(ierr);
+	}
+
+	/** Apply the preconditioner. Only one type of preconditioners is applied. */
+	if (gi.pc_type == PCSparam) {  
+		Vec sparamL, sparamS;
+		//ierr = create_sparamLf(&sparamL, Etype, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&sparamL, set_sparamLe_at, gi); CHKERRQ(ierr);
+		//ierr = create_sparamSf(&sparamS, Etype, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&sparamS, set_sparamSe_at, gi); CHKERRQ(ierr);
+		if (!gi.is_symmetric) {  // Ascpml = diag(1/sparamS) Aupml diag(sparamL)
+			ierr = VecPointwiseMult(left_precond, left_precond, sparamS); CHKERRQ(ierr);
+			ierr = VecPointwiseDivide(*right_precond, *right_precond, sparamL); CHKERRQ(ierr);
+		} else {  // diag(sqrt(sparamL/sparamS)) Aupml diag(sqrt(sparamL/sparamS))
+			Vec sqrtLoverS;
+			ierr = VecDuplicate(gi.vecTemp, &sqrtLoverS); CHKERRQ(ierr);
+			ierr = VecPointwiseDivide(sqrtLoverS, sparamL, sparamS); CHKERRQ(ierr);
+			ierr = sqrtVec(sqrtLoverS, gi); CHKERRQ(ierr);
+			ierr = VecPointwiseDivide(left_precond, left_precond, sqrtLoverS); CHKERRQ(ierr);
+			ierr = VecPointwiseDivide(*right_precond, *right_precond, sqrtLoverS); CHKERRQ(ierr);
+			ierr = VecDestroy(&sqrtLoverS); CHKERRQ(ierr);
+		}
+
+		ierr = VecDestroy(&sparamL); CHKERRQ(ierr);
+		ierr = VecDestroy(&sparamS); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VBDetail, ts, "s-parameter preconditioner", gi); CHKERRQ(ierr);
+	} else if (gi.pc_type == PCEps) {
+		//ierr = create_eps(&precond, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&precond, set_eps_at, gi); CHKERRQ(ierr);
+		if (!gi.is_symmetric) {
+			ierr = VecPointwiseMult(left_precond, left_precond, precond); CHKERRQ(ierr);
+		} else {
+			ierr = sqrtVec(precond, gi); CHKERRQ(ierr);
+			ierr = VecPointwiseMult(left_precond, left_precond, precond); CHKERRQ(ierr);
+			ierr = VecPointwiseMult(*right_precond, *right_precond, precond); CHKERRQ(ierr);
+		}
+		ierr = VecDestroy(&precond); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VBDetail, ts, "eps preconditioner", gi); CHKERRQ(ierr);
+	} else if (gi.pc_type == PCJacobi) {
+		ierr = VecDuplicate(gi.vecTemp, &precond); CHKERRQ(ierr);
+		ierr = MatGetDiagonal(*A, precond); CHKERRQ(ierr);
+		if (!gi.is_symmetric) {
+			ierr = VecPointwiseMult(left_precond, left_precond, precond); CHKERRQ(ierr);
+		} else {
+			ierr = sqrtVec(precond, gi); CHKERRQ(ierr);
+			ierr = VecPointwiseMult(left_precond, left_precond, precond); CHKERRQ(ierr);
+			ierr = VecPointwiseMult(*right_precond, *right_precond, precond); CHKERRQ(ierr);
+		}
+		ierr = VecDestroy(&precond); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VBDetail, ts, "Jacobi preconditioner", gi); CHKERRQ(ierr);
+	} else {
+		assert(gi.pc_type == PCIdentity);
+	}
+
+	Vec inv_left, inv_right; 
+	ierr = VecDuplicate(gi.vecTemp, &inv_left); CHKERRQ(ierr);
+	ierr = VecSet(inv_left, 1.0); CHKERRQ(ierr);
+	ierr = VecPointwiseDivide(inv_left, inv_left, left_precond); CHKERRQ(ierr);
+
+	ierr = VecDuplicate(gi.vecTemp, &inv_right); CHKERRQ(ierr);
+	ierr = VecSet(inv_right, 1.0); CHKERRQ(ierr);
+	ierr = VecPointwiseDivide(inv_right, inv_right, *right_precond); CHKERRQ(ierr);
+
+	/** The below is true because right_precond = (left_precond)^-1. */
+	ierr = MatDiagonalScale(*A, inv_left, inv_right); CHKERRQ(ierr);
+	ierr = VecPointwiseMult(*b, inv_left, *b); CHKERRQ(ierr);
+	ierr = VecDestroy(&inv_left); CHKERRQ(ierr);
+	ierr = VecDestroy(&inv_right); CHKERRQ(ierr);
+
+	/** Recover the original d_dual and d_prim. */
+	if (gi.pml_type == SCPML) {
+		ierr = unstretch_d(&gi); CHKERRQ(ierr);
+	}
+
+	ierr = VecDestroy(&eps); CHKERRQ(ierr);
+	ierr = VecDestroy(&mu); CHKERRQ(ierr);
+	ierr = VecDestroy(&epsMask); CHKERRQ(ierr);
+	ierr = VecDestroy(&inverse); CHKERRQ(ierr);
+	ierr = VecDestroy(&left_precond); CHKERRQ(ierr);
+
+	PetscBool flgBloch;
+	ierr = hasBloch(&flgBloch, gi); CHKERRQ(ierr);
+	if (gi.is_symmetric && !flgBloch) {
+		ierr = numSymmetrize(*A); CHKERRQ(ierr);
+		ierr = MatSetOption(*A, MAT_SYMMETRIC, PETSC_TRUE); CHKERRQ(ierr);
+		ierr = MatSetOption(*A, MAT_HERMITIAN, PETSC_FALSE); CHKERRQ(ierr);
+	} else {
+		ierr = MatSetOption(*A, MAT_SYMMETRIC, PETSC_FALSE); CHKERRQ(ierr);
+		ierr = MatSetOption(*A, MAT_HERMITIAN, PETSC_FALSE); CHKERRQ(ierr);
+	}
+
+	PetscFunctionReturn(0);
+}
+
+
+/**
+ * Modify create_A_and_b() so that the added continuity equation is symmetric.
+ */
+#undef __FUNCT__
+#define __FUNCT__ "create_A_and_b4"
+PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, GridInfo gi, TimeStamp *ts)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr;
+
+	Vec eps, mu, epsMask; 
+	Vec inverse;  // store various inverse vectors
+	Vec left_precond, precond;
+	Mat CE, CH;  // curl operators on E and H
+	Mat CHE; 
+
+	if (gi.verbose_level >= VBMedium) {
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nCreate the matrix for %s with %s, preconditioned by %s.\n", FieldTypeName[gi.x_type], PMLTypeName[gi.pml_type], PCTypeName[gi.pc_type]); CHKERRQ(ierr);
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "The matrix is %s, continuity eq %s", (gi.is_symmetric ? "symmetric":"non-symmetric"), (gi.add_conteq ? "added":"not added")); CHKERRQ(ierr);
+		if (gi.add_conteq) {
+			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, " with factor %f", gi.factor_conteq); CHKERRQ(ierr);
+		}
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, ".\n"); CHKERRQ(ierr);
+	}
+
+	ierr = VecDuplicate(gi.vecTemp, &inverse); CHKERRQ(ierr);
+
+	/** Stretch gi.d_prim and gi.d_dual by gi.s_prim and gi.s_dual. */
+	if (gi.pml_type == SCPML) {
+		ierr = stretch_d(&gi); CHKERRQ(ierr);
+	}
+
+	/** Create the permittivity vector. */
+	//ierr = create_eps(&eps, gi); CHKERRQ(ierr);
+	ierr = createFieldArray(&eps, set_eps_at, gi); CHKERRQ(ierr);
+	if (gi.pml_type == UPML) {
+		Vec sparamEps;
+		//ierr = create_sparamEps(&sparamEps, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&sparamEps, set_sparam_eps_at, gi); CHKERRQ(ierr);
+		ierr = VecPointwiseMult(eps, eps, sparamEps); CHKERRQ(ierr);
+		ierr = VecDestroy(&sparamEps); CHKERRQ(ierr);
+	}
+	//ierr = create_epsMask(&epsMask, gi); CHKERRQ(ierr);  // to handle PEC objects
+	ierr = createFieldArray(&epsMask, set_epsMask_at, gi); CHKERRQ(ierr);  // to handle PEC objects
+	ierr = updateTimeStamp(VBDetail, ts, "eps vector", gi); CHKERRQ(ierr);
+
+
+	/** Create the permeability vector. */
+	//ierr = create_mu(&mu, gi); CHKERRQ(ierr);
+	ierr = createFieldArray(&mu, set_mu_at, gi); CHKERRQ(ierr);
+	if (gi.pml_type == UPML) {
+		Vec sparamMu;
+		//ierr = create_sparamMu(&sparamMu, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&sparamMu, set_sparam_mu_at, gi); CHKERRQ(ierr);
+		ierr = VecPointwiseMult(mu, mu, sparamMu); CHKERRQ(ierr);
+		ierr = VecDestroy(&sparamMu); CHKERRQ(ierr);
+	}
+	ierr = updateTimeStamp(VBDetail, ts, "mu vector", gi); CHKERRQ(ierr);
+
+	/** Set up the matrix CE, the curl operator on E fields. */
+	ierr = createCE(&CE, gi, PETSC_TRUE); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VBDetail, ts, "CE matrix", gi); CHKERRQ(ierr);
+
+	/** Set up the matrix CH, the curl operator on H fields. */
+	ierr = createCH(&CH, gi, PETSC_TRUE); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VBDetail, ts, "CH matrix", gi); CHKERRQ(ierr);
+
+	if (gi.x_type == Htype) {
+		Mat mat_temp;
+		Vec vec_temp;
+
+		mat_temp = CE; CE = CH; CH = mat_temp;
+		vec_temp = eps; eps = mu; mu = vec_temp;
+	}
+
+	/** Set up the matrix HE, the operator giving H fields from E fields. */
+	*HE = CE;
+	ierr = VecSet(inverse, 1.0); CHKERRQ(ierr);
+	ierr = VecPointwiseDivide(inverse, inverse, mu); CHKERRQ(ierr);
+	ierr = MatDiagonalScale(*HE, inverse, PETSC_NULL); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VBDetail, ts, "HE matrix", gi); CHKERRQ(ierr);
+
+	/** Create the matrix CHE, the curl(mu^-1 curl) operator. */
+	ierr = createCHE(&CHE, CH, *HE, gi); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VBDetail, ts, "CHE matrix", gi); CHKERRQ(ierr);
+	ierr = MatDestroy(&CH); CHKERRQ(ierr);
+
+	if (!gi.add_conteq) {
+		/** Below, isn't *A = CHE the same as A = &CHE?  No.  Remember that A is a return value.  
+		  When this function is called, we do:
+		  Mat B;
+		  ...
+		  ierr = create_XXX_A_YYY(&B, ...); CHKERRQ(ierr);
+		  The intension of this function call is to fill the memory pointed by &B. *A = CHE fulfills 
+		  this intension.
+		  On the other hand, if the below line is A = &CHE, it is nothing but changing the value of 
+		  the pointer variable A from &B to &CHE.  Therefore nothing is returned to B. */
+		*A = CHE;
+
+		/** Create b. */
+		//ierr = create_jSrc(b, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(b, set_src_at, gi); CHKERRQ(ierr);
+		ierr = VecScale(*b, -PETSC_i*gi.omega); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VBDetail, ts, "b vector", gi); CHKERRQ(ierr);
+	} else {  // currently, add_conteq only works for x_type == Etype
+		ierr = createAtemplate(A, gi); CHKERRQ(ierr);
+		ierr = MatAXPY(*A, 1.0, CHE, SUBSET_NONZERO_PATTERN); CHKERRQ(ierr);
+		ierr = MatDestroy(&CHE); CHKERRQ(ierr);
+
+		/** Create the gradient-divergence operator. */
+		Mat GD;
+		ierr = createGD3(&GD, gi); CHKERRQ(ierr);
+		ierr = MatDiagonalScale(GD, eps, PETSC_NULL); CHKERRQ(ierr);  // GD = eps grad[eps^-2 div()]
+		//ierr = createGD2(&GD, gi); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VBDetail, ts, "GD matrix", gi); CHKERRQ(ierr);
+
+		/** Create b. */
+		Vec b_aug;
+		ierr = VecDuplicate(gi.vecTemp, &b_aug); CHKERRQ(ierr);
+		//ierr = create_jSrc(b, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(b, set_src_at, gi); CHKERRQ(ierr);  // b = J
+		ierr = VecCopy(*b, b_aug); CHKERRQ(ierr);  // b_aug = J
+		ierr = VecScale(b_aug, gi.factor_conteq*PETSC_i/gi.omega); CHKERRQ(ierr);  // b_aug = s*(i/omega)*J
+		ierr = VecScale(*b, -PETSC_i*gi.omega); CHKERRQ(ierr);  // b = -i*omega*J
+		ierr = MatMultAdd(GD, b_aug, *b, *b); CHKERRQ(ierr);  // b = -i*omega*J + GD * s*(i/omega)*J
+		ierr = VecDestroy(&b_aug); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VBDetail, ts, "b vector", gi); CHKERRQ(ierr);
+
+		ierr = MatDiagonalScale(GD, PETSC_NULL, eps); CHKERRQ(ierr);
+		ierr = MatAXPY(*A, gi.factor_conteq, GD, SUBSET_NONZERO_PATTERN); CHKERRQ(ierr);
+		ierr = MatDestroy(&GD); CHKERRQ(ierr);
+	}
+
+	ierr = MatDiagonalScale(*A, epsMask, PETSC_NULL); CHKERRQ(ierr);
+	ierr = VecPointwiseMult(*b, epsMask, *b); CHKERRQ(ierr);
+	if (!gi.solve_eigen) {
+		Vec negW2Eps = eps;
+		ierr = VecScale(negW2Eps, -gi.omega*gi.omega); CHKERRQ(ierr);
+		ierr = MatDiagonalSet(*A, negW2Eps, ADD_VALUES); CHKERRQ(ierr);
+	}
+	ierr = updateTimeStamp(VBDetail, ts, "A matrix", gi); CHKERRQ(ierr);
+
+	/** Scale the matrix HE. */
+	if (gi.x_type == Etype) {
+		ierr = MatScale(*HE, -1/gi.omega/PETSC_i); CHKERRQ(ierr);  // HE = [(-i*omega)^-1] * invMu*CH
+	} else {
+		ierr = MatScale(*HE, 1/gi.omega/PETSC_i); CHKERRQ(ierr);  // HE = [(i*omega)^-1] * invEps * CH, where HE is in fact EH
+	}
+	ierr = updateTimeStamp(VBDetail, ts, "HE matrix scaling", gi); CHKERRQ(ierr);
+
+	/** Create the left and right preconditioner. */
+	/** Set the left preconditioner. */
+	ierr = VecDuplicate(gi.vecTemp, &left_precond); CHKERRQ(ierr);
+	ierr = VecSet(left_precond, 1.0); CHKERRQ(ierr);
+
+	/** Set the right preconditioner. */
+	ierr = VecDuplicate(gi.vecTemp, right_precond); CHKERRQ(ierr);
+	ierr = VecSet(*right_precond, 1.0); CHKERRQ(ierr);
+
+	if (gi.is_symmetric) {  // currently, is_symmetric only works for x_type == Etype
+		/** original eq: A0 x = b.  The matrix 
+		  diag(1/sqrt(Epmc)) diag(sqrt(LS)) A0 diag(1/sqrt(LS)) diag(sqrt(Epmc))
+		  is symmetric. */
+
+		/** Calculate the diagonal matrix to be multiplied to the left and right of the 
+		  matrix A for symmetrizing A. */
+		Vec sqrtLS, dS;
+		//ierr = create_dLf(&sqrtLS, Etype, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&sqrtLS, set_dLe_at, gi); CHKERRQ(ierr);
+		//ierr = create_dSf(&dS, Etype, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&dS, set_dSe_at, gi); CHKERRQ(ierr);
+		ierr = VecPointwiseMult(sqrtLS, sqrtLS, dS); CHKERRQ(ierr);
+		ierr = VecDestroy(&dS); CHKERRQ(ierr);
+		ierr = sqrtVec(sqrtLS, gi); CHKERRQ(ierr);
+
+		ierr = VecPointwiseMult(*right_precond, *right_precond, sqrtLS); CHKERRQ(ierr);
+		ierr = VecDestroy(&sqrtLS); CHKERRQ(ierr);
+
+		Vec sqrtScaleEpmc;
+		//ierr = create_scaleEpmc(&sqrtScaleEpmc, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&sqrtScaleEpmc, set_scale_Epmc_at, gi); CHKERRQ(ierr);
+		ierr = sqrtVec(sqrtScaleEpmc, gi); CHKERRQ(ierr);
+
+		ierr = VecPointwiseDivide(*right_precond, *right_precond, sqrtScaleEpmc); CHKERRQ(ierr);
+		ierr = VecDestroy(&sqrtScaleEpmc); CHKERRQ(ierr);
+		ierr = VecPointwiseDivide(left_precond, left_precond, *right_precond); CHKERRQ(ierr);
+	}
+
+	/** Apply the preconditioner. Only one type of preconditioners is applied. */
+	if (gi.pc_type == PCSparam) {  
+		Vec sparamL, sparamS;
+		//ierr = create_sparamLf(&sparamL, Etype, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&sparamL, set_sparamLe_at, gi); CHKERRQ(ierr);
+		//ierr = create_sparamSf(&sparamS, Etype, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&sparamS, set_sparamSe_at, gi); CHKERRQ(ierr);
+		if (!gi.is_symmetric) {  // Ascpml = diag(1/sparamS) Aupml diag(sparamL)
+			ierr = VecPointwiseMult(left_precond, left_precond, sparamS); CHKERRQ(ierr);
+			ierr = VecPointwiseDivide(*right_precond, *right_precond, sparamL); CHKERRQ(ierr);
+		} else {  // diag(sqrt(sparamL/sparamS)) Aupml diag(sqrt(sparamL/sparamS))
+			Vec sqrtLoverS;
+			ierr = VecDuplicate(gi.vecTemp, &sqrtLoverS); CHKERRQ(ierr);
+			ierr = VecPointwiseDivide(sqrtLoverS, sparamL, sparamS); CHKERRQ(ierr);
+			ierr = sqrtVec(sqrtLoverS, gi); CHKERRQ(ierr);
+			ierr = VecPointwiseDivide(left_precond, left_precond, sqrtLoverS); CHKERRQ(ierr);
+			ierr = VecPointwiseDivide(*right_precond, *right_precond, sqrtLoverS); CHKERRQ(ierr);
+			ierr = VecDestroy(&sqrtLoverS); CHKERRQ(ierr);
+		}
+
+		ierr = VecDestroy(&sparamL); CHKERRQ(ierr);
+		ierr = VecDestroy(&sparamS); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VBDetail, ts, "s-parameter preconditioner", gi); CHKERRQ(ierr);
+	} else if (gi.pc_type == PCEps) {
+		//ierr = create_eps(&precond, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&precond, set_eps_at, gi); CHKERRQ(ierr);
+		if (!gi.is_symmetric) {
+			ierr = VecPointwiseMult(left_precond, left_precond, precond); CHKERRQ(ierr);
+		} else {
+			ierr = sqrtVec(precond, gi); CHKERRQ(ierr);
+			ierr = VecPointwiseMult(left_precond, left_precond, precond); CHKERRQ(ierr);
+			ierr = VecPointwiseMult(*right_precond, *right_precond, precond); CHKERRQ(ierr);
+		}
+		ierr = VecDestroy(&precond); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VBDetail, ts, "eps preconditioner", gi); CHKERRQ(ierr);
+	} else if (gi.pc_type == PCJacobi) {
+		ierr = VecDuplicate(gi.vecTemp, &precond); CHKERRQ(ierr);
+		ierr = MatGetDiagonal(*A, precond); CHKERRQ(ierr);
+		if (!gi.is_symmetric) {
+			ierr = VecPointwiseMult(left_precond, left_precond, precond); CHKERRQ(ierr);
+		} else {
+			ierr = sqrtVec(precond, gi); CHKERRQ(ierr);
+			ierr = VecPointwiseMult(left_precond, left_precond, precond); CHKERRQ(ierr);
+			ierr = VecPointwiseMult(*right_precond, *right_precond, precond); CHKERRQ(ierr);
+		}
+		ierr = VecDestroy(&precond); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VBDetail, ts, "Jacobi preconditioner", gi); CHKERRQ(ierr);
+	} else {
+		assert(gi.pc_type == PCIdentity);
+	}
+
+	Vec inv_left, inv_right; 
+	ierr = VecDuplicate(gi.vecTemp, &inv_left); CHKERRQ(ierr);
+	ierr = VecSet(inv_left, 1.0); CHKERRQ(ierr);
+	ierr = VecPointwiseDivide(inv_left, inv_left, left_precond); CHKERRQ(ierr);
+
+	ierr = VecDuplicate(gi.vecTemp, &inv_right); CHKERRQ(ierr);
+	ierr = VecSet(inv_right, 1.0); CHKERRQ(ierr);
+	ierr = VecPointwiseDivide(inv_right, inv_right, *right_precond); CHKERRQ(ierr);
+
+	/** The below is true because right_precond = (left_precond)^-1. */
+	ierr = MatDiagonalScale(*A, inv_left, inv_right); CHKERRQ(ierr);
+	ierr = VecPointwiseMult(*b, inv_left, *b); CHKERRQ(ierr);
+	ierr = VecDestroy(&inv_left); CHKERRQ(ierr);
+	ierr = VecDestroy(&inv_right); CHKERRQ(ierr);
+
+	/** Recover the original d_dual and d_prim. */
+	if (gi.pml_type == SCPML) {
+		ierr = unstretch_d(&gi); CHKERRQ(ierr);
+	}
+
+	ierr = VecDestroy(&eps); CHKERRQ(ierr);
+	ierr = VecDestroy(&mu); CHKERRQ(ierr);
+	ierr = VecDestroy(&epsMask); CHKERRQ(ierr);
+	ierr = VecDestroy(&inverse); CHKERRQ(ierr);
+	ierr = VecDestroy(&left_precond); CHKERRQ(ierr);
+
+	PetscBool flgBloch;
+	ierr = hasBloch(&flgBloch, gi); CHKERRQ(ierr);
+	if (gi.is_symmetric && !flgBloch) {
+		ierr = numSymmetrize(*A); CHKERRQ(ierr);
+		ierr = MatSetOption(*A, MAT_SYMMETRIC, PETSC_TRUE); CHKERRQ(ierr);
+		ierr = MatSetOption(*A, MAT_HERMITIAN, PETSC_FALSE); CHKERRQ(ierr);
+	} else {
+		ierr = MatSetOption(*A, MAT_SYMMETRIC, PETSC_FALSE); CHKERRQ(ierr);
+		ierr = MatSetOption(*A, MAT_HERMITIAN, PETSC_FALSE); CHKERRQ(ierr);
+	}
+
+	PetscFunctionReturn(0);
+}
