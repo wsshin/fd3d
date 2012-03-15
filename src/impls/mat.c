@@ -27,13 +27,12 @@ PetscErrorCode setDpOnDivF_at(Mat DivF, FieldType ftype, Axis Pp, PetscInt i, Pe
 	  [div(F)]z = 0
 	 */
 
-	/** Below, I'm going to set up (d/dz) operations of the following equation:
-	  (for ftype==Etype, Pp==Zz):
-	  [div(E)]x = (d/dx)Ex + (d/dy)Ey + (d/dz)Ez
-	  In general, I'm going to set up (d/dp) operation of the following:
-	  [div(F)]x = (d/dp)Fp + (d/dq)Fq + (d/dr)Fr
-	  For the future notation I define a vector Gx= [div(F)]x, then the equation is
-	  Gx = (d/dp)Fp + (d/dq)Fq + (d/dr)Fr
+	/** For general ftype and Pp, I'm going to set up (d/dp) operation of the following equation:
+	      [div(F)]x = (d/dp)Fp + (d/dq)Fq + (d/dr)Fr
+	  If ftype==Etype and Pp==Zz, this means that I'm going to set up (d/dz) operations of:
+	      [div(E)]x = (d/dx)Ex + (d/dy)Ey + (d/dz)Ez
+	  For the future notation I define a vector Gx= [div(F)]x.  Then the equation is
+	      Gx = (d/dp)Fp + (d/dq)Fq + (d/dr)Fr
 	 */
 
 	/** For (d/dp) terms in Gx */
@@ -433,27 +432,27 @@ PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscI
 	PetscErrorCode ierr;
 
 	/** Notation: 
-F: field to differentiate.  Either E or H.  Given by ftype.
-G: if F==E, then G==H, and if F==H, then G==E.
-(p,q,r): cyclic permutation of (x,y,z)
-(Pp,Qq,Rr): cyclic permutation of (Xx,Yy,Zz)
-Therefore, if Gq==Hy, then Fp==Ex and dr==dx, and so on. */
+	    F: field to differentiate.  Either E or H.  Given by ftype.
+	    G: if F==E, then G==H, and if F==H, then G==E.
+	    (p,q,r): cyclic permutation of (x,y,z)
+	    (Pp,Qq,Rr): cyclic permutation of (Xx,Yy,Zz)
+	  Therefore, if Gq==Hy, then Fp==Ex and dr==dx, and so on. */
 
-	/** Below, I'm going to set up (d/dx) operations of the following two equations 
-	  (for ftype==Etype, Pp==Xx):
-	  -i w mu Hz = [curl(E)]z = (d/dx)Ey - (d/dy)Ex 
-	  -i w mu Hy = [curl(E)]y = (d/dz)Ex - (d/dx)Ez 
-	  In general, I'm going to set up (d/dp) operations of the following two:
-	  -i w mu Gr = [curl(F)]r = (d/dp)Fq - (d/dq)Fp
-	  -i w mu Gq = [curl(F)]q = (d/dr)Fp - (d/dp)Fr
-	  , where (F,G)==(E,H), or 
-	  i w eps Gr = [curl(F)]r = (d/dp)Fq - (d/dq)Fp
-	  i w eps Gq = [curl(F)]q = (d/dr)Fp - (d/dp)Fr
-	  , where (F,G)==(H,E).  (p,q,r) is a cyclic permutation of (x,y,z). 
+	/** For general ftype and Pp, I'm going to set up (d/dp) operations of:
+	      -i w mu Gr = [curl(F)]r = (d/dp)Fq - (d/dq)Fp
+	      -i w mu Gq = [curl(F)]q = (d/dr)Fp - (d/dp)Fr
+	  if (F,G)==(E,H), or 
+	      i w eps Gr = [curl(F)]r = (d/dp)Fq - (d/dq)Fp
+	      i w eps Gq = [curl(F)]q = (d/dr)Fp - (d/dp)Fr
+	  if (F,G)==(H,E).  (p,q,r) is a cyclic permutation of (x,y,z). 
+	  If ftype==Etype and Pp==Xx, this means that I'm going to set up (d/dx) operations of the 
+	  following two equations:
+	      -i w mu Hz = [curl(E)]z = (d/dx)Ey - (d/dy)Ex 
+	      -i w mu Hy = [curl(E)]y = (d/dz)Ex - (d/dx)Ez 
 	  In both (F,G)==(E,H) and (H,E) cases, we set up [curl(F)]r matrix elements for Gr, 
 	  or [curl(F)]q matrix elements for Gq.  I will denote these as 
-	  Gr <-- [curl(F)]r
-	  Gq <-- [curl(F)]q
+	      Gr <-- [curl(F)]r
+	      Gq <-- [curl(F)]q
 	 */
 
 	/** For (d/dp) term in Gr <-- [curl(F)]r */
@@ -2403,8 +2402,8 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 		ierr = VecPointwiseMult(eps, eps, sparamEps); CHKERRQ(ierr);
 		ierr = VecDestroy(&sparamEps); CHKERRQ(ierr);
 	}
-	//ierr = create_epsMask(&epsMask, gi); CHKERRQ(ierr);  // to handle PEC objects
-	ierr = createFieldArray(&epsMask, set_epsMask_at, gi); CHKERRQ(ierr);  // to handle PEC objects
+	//ierr = create_epsMask(&epsMask, gi); CHKERRQ(ierr);  // to handle TruePEC objects
+	ierr = createFieldArray(&epsMask, set_epsMask_at, gi); CHKERRQ(ierr);  // to handle TruePEC objects
 	ierr = updateTimeStamp(VBDetail, ts, "eps vector", gi); CHKERRQ(ierr);
 
 
@@ -2494,8 +2493,9 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 		ierr = MatDestroy(&GD); CHKERRQ(ierr);
 	}
 
-	ierr = MatDiagonalScale(*A, epsMask, PETSC_NULL); CHKERRQ(ierr);
-	ierr = VecPointwiseMult(*b, epsMask, *b); CHKERRQ(ierr);
+	ierr = MatDiagonalScale(*A, epsMask, PETSC_NULL); CHKERRQ(ierr);  // omega^2*mu*eps is not subtracted yet, so the diagonal entries will be nonzero
+	ierr = VecPointwiseMult(*b, epsMask, *b); CHKERRQ(ierr);  // force E = 0 on TruePEC.  comment this line to allow source on TruePEC
+
 	if (!gi.solve_eigen) {
 		Vec negW2Eps = eps;
 		ierr = VecScale(negW2Eps, -gi.omega*gi.omega); CHKERRQ(ierr);

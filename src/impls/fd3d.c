@@ -390,6 +390,7 @@ PetscErrorCode main(int argc, char **argv)
 		ierr = VecPointwiseMult(x, x, right_precond); CHKERRQ(ierr);
 	} else {  // in this case, not preconditioning x is better
 		ierr = VecSet(x, 0.0); CHKERRQ(ierr);
+		//ierr = VecSetRandom(x, PETSC_NULL); CHKERRQ(ierr);  // for random initial x
 		//ierr = VecPointwiseDivide(x, x, right_precond); CHKERRQ(ierr);
 	}
 	//ierr = VecCopy(e0, x); CHKERRQ(ierr);
