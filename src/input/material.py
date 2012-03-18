@@ -22,8 +22,8 @@ class Material:
 		return self.color_index
 
 Vac = Material('Vacuum', 0)
-PML = Material('PML', -1)
-TruePEC = Material('PEC', -2, float('inf'))
+PML = Material('PML', -2)
+TruePEC = Material('PEC', -1, float('inf'))
 
 #def create_material(name, color, wvlen0):
 #	param_dir = FD3D_ROOT + '/material/'
