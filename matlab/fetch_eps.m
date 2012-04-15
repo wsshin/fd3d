@@ -1,4 +1,4 @@
-function eps = read_eps(file_base_name, gi)
+function eps = fetch_eps(file_base_name, gi)
 
 const; 
 

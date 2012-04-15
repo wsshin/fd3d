@@ -2,8 +2,8 @@ function relerr = compare_solutions(basename1, basename2, gi)
 
 const;
 
-e1 = read_eh(strcat(FD3D_ROOT, basename1), gi, [true true true; false false false]);
-e2 = read_eh(strcat(FD3D_ROOT, basename2), gi, [true true true; false false false]);
+e1 = fetch_eh(strcat(FD3D_ROOT, basename1), gi, [true true true; false false false]);
+e2 = fetch_eh(strcat(FD3D_ROOT, basename2), gi, [true true true; false false false]);
 
 Npml = gi.Npml;
 

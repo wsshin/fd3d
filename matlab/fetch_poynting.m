@@ -1,4 +1,4 @@
-function sr = read_poynting(file_base_name, normal, intercept, gi)
+function sr = fetch_poynting(file_base_name, normal, intercept, gi)
 % The Poynting vectors are calculated on the points of H fields.  The 
 % Poynting vectors calculated at these points multiplied with area elements 
 % used for curl(E) give the correct power flux through a box bounded by 
@@ -18,7 +18,7 @@ if intercept == gi.N(normal)+1
 end
 
 % Get Ep and Eq on the plane normal to "normal" at intercept.
-[e h] = read_eh2d(file_base_name, normal, intercept, gi);
+[e h] = fetch_eh2d(file_base_name, normal, intercept, gi);
 
 ep = e{Pp}.array;
 eq = e{Qq}.array;
@@ -63,7 +63,7 @@ hq = h{Qq}.array;
 clear h
 
 if intercept > 1
-    [e_prev h_prev] = read_eh2d(file_base_name, normal, intercept-1, gi, [false false false; true true true]);
+    [e_prev h_prev] = fetch_eh2d(file_base_name, normal, intercept-1, gi, [false false false; true true true]);
     hp_prev = h_prev{Pp}.array;
     hq_prev = h_prev{Qq}.array;
     clear e_prev h_prev
@@ -76,7 +76,7 @@ else
             hp_prev = -hp;
             hq_prev = -hq;
         case Bloch
-            [e_prev h_prev] = read_eh2d(file_base_name, normal, Nr, gi, [false false false; true true true]);
+            [e_prev h_prev] = fetch_eh2d(file_base_name, normal, Nr, gi, [false false false; true true true]);
             hp_prev = h_prev{Pp}.array / gi.exp_neg_ikL(Rr);
             hq_prev = h_prev{Qq}.array / gi.exp_neg_ikL(Rr);
         otherwise

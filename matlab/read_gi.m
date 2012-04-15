@@ -1,4 +1,4 @@
-function gi = retrieve_gi(basename)
+function gi = read_gi(basename)
 
 const;
 

@@ -1,4 +1,4 @@
-function [e h] = read_eh2d(file_base_name, normal, intercept, gi, comp_to_get)
+function [e h] = fetch_eh2d(file_base_name, normal, intercept, gi, comp_to_get)
 
 const; 
 

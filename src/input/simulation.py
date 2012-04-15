@@ -25,6 +25,9 @@ class Simulation:
 		box_vac = Object(box, Vac)
 		#self.bg_objList.append(box_vac)
 		self.append_bg_object(box_vac)
+
+		eps_array = None
+		src_array = None
 		
 		# PMLs
 		"""The following object for the PML is only for visualization.  PML is functional without
@@ -125,20 +128,31 @@ class Simulation:
 	def set_BiCG_max_iter(self, max_iter):
 		"""Set the maximum number of iterations of BiCG."""
 		self.max_iter = max_iter
+
+	def set_eps_array(self, eps_array):
+		"""Set an array of eps.  When this is called, you do not have to set objects."""
+		self.eps_array = eps_array
+
+	def set_src_array(self, src_array):
+		"""Set an array of source.  When this is called, you do not have to set sources.."""
+		self.src_array = src_array
 	
 	def get_eps_at(self, axis, i, j, k, bg_only=False):
 		"""bg_only is for TF/SF."""
 		assert(isinstance(i,int) and isinstance(j,int) and isinstance(k,int))
-		pos1 = [i, j, k]
-		eps1 = self.get_eps_at_kernel(pos1, bg_only)
-		pos2 = [i, j, k]
-		pos2[axis] += 1
-		eps2 = self.get_eps_at_kernel(pos2, bg_only)
-		denom = (1.0/eps1 + 1.0/eps2)
-		if denom==0.0:
-			return float('inf')
+		if self.eps_array == None:
+			return self.eps_array[axis][i][j][k]
 		else:
-			return 2.0 / (1.0/eps1 + 1.0/eps2)  # for the continuity of the normal component of E at the interface.  See Hwang and Cangellaris, IEEE Microwave and Wireless Components Letters, 11 (4), 2001
+			pos1 = [i, j, k]
+			eps1 = self.get_eps_at_kernel(pos1, bg_only)
+			pos2 = [i, j, k]
+			pos2[axis] += 1
+			eps2 = self.get_eps_at_kernel(pos2, bg_only)
+			denom = (1.0/eps1 + 1.0/eps2)
+			if denom==0.0:
+				return float('inf')
+			else:
+				return 2.0 / (1.0/eps1 + 1.0/eps2)  # for the continuity of the normal component of E at the interface.  See Hwang and Cangellaris, IEEE Microwave and Wireless Components Letters, 11 (4), 2001
 
 	def get_eps_node_at(self, i, j, k, bg_only=False):
 		"""Return the value of eps at a node regardless of axis."""
@@ -203,11 +217,14 @@ class Simulation:
 		assert('Should not reach here.')
 	
 	def get_src_at(self, polarization, i, j, k):
-		for n in xrange(len(self.srcList)-1, -1, -1):
-			src = self.srcList[n]
-			if src.is_valid_at(polarization, i, j, k):
-				return src.get_src_at(polarization, i, j, k)
-		return 0.0
+		if self.src_array == None:
+			return self.src_array[polarization][i][j][k]
+		else:
+			for n in xrange(len(self.srcList)-1, -1, -1):
+				src = self.srcList[n]
+				if src.is_valid_at(polarization, i, j, k):
+					return src.get_src_at(polarization, i, j, k)
+			return 0.0
 	
 	def has_incidentE(self):
 		return self.incidentE != None

@@ -1,4 +1,4 @@
-function eps = read_eps_tensor(file_base_name, gi)
+function eps = fetch_eps_tensor(file_base_name, gi)
 
 const; 
 

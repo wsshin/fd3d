@@ -5,7 +5,7 @@ classdef gridinfo < handle
         L0  % length unit in meter
         display_length_unit = 'nm'  % length unit to display
         dlu_scale = 1e9;  % conversion factor to display length unit
-        BC
+        BC  % 3 x 2 array
         exp_neg_ikL
         N
         Npml

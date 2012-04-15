@@ -1,4 +1,4 @@
-function [e h] = read_eh(file_base_name, gi, comp_to_get)
+function [e h] = fetch_eh(file_base_name, gi, comp_to_get)
 
 const; 
 
