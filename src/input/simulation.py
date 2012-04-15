@@ -140,7 +140,7 @@ class Simulation:
 	def get_eps_at(self, axis, i, j, k, bg_only=False):
 		"""bg_only is for TF/SF."""
 		assert(isinstance(i,int) and isinstance(j,int) and isinstance(k,int))
-		if self.eps_array == None:
+		if self.eps_array != None:
 			return self.eps_array[axis][i][j][k]
 		else:
 			pos1 = [i, j, k]
@@ -217,7 +217,7 @@ class Simulation:
 		assert('Should not reach here.')
 	
 	def get_src_at(self, polarization, i, j, k):
-		if self.src_array == None:
+		if self.src_array != None:
 			return self.src_array[polarization][i][j][k]
 		else:
 			for n in xrange(len(self.srcList)-1, -1, -1):
@@ -318,8 +318,13 @@ class Simulation:
 		print
 		if material_probe==None:
 			material_probe = [self.get_N(Xx)/2, self.get_N(Yy)/2, self.get_N(Zz)/2]
-		print 'eps at', str(tuple(material_probe))+':', self.get_eps_at_kernel(material_probe)
-		print 'mu at', str(tuple(material_probe))+':', self.get_mu_at_kernel(material_probe)
+		if len(material_probe)==3:
+			print 'eps at', str(tuple(material_probe))+':', self.get_eps_at_kernel(material_probe)
+			print 'mu at', str(tuple(material_probe))+':', self.get_mu_at_kernel(material_probe)
+		else:
+			assert(len(material_probe)==4)
+			print 'eps at', str(tuple(material_probe[1:])) + ' in ' + AxisName[material_probe[0]] +':', self.get_eps_at(material_probe[0], material_probe[1], material_probe[2], material_probe[3])
+			print 'mu at', str(tuple(material_probe[1:])) + ' in ' + AxisName[material_probe[0]] +':', self.get_mu_at(material_probe[0], material_probe[1], material_probe[2], material_probe[3])
 		if src_probe==None:
 			src_probe = [Zz, self.get_N(Xx)/2, self.get_N(Yy)/2, self.get_N(Zz)/2]
 		print 'source at', str(tuple(src_probe[1:])) + ' in ' + AxisName[src_probe[0]] +':', self.get_src_at(src_probe[0], src_probe[1], src_probe[2], src_probe[3])
