@@ -26,8 +26,8 @@ class Simulation:
 		#self.bg_objList.append(box_vac)
 		self.append_bg_object(box_vac)
 
-		eps_array = None
-		src_array = None
+		self.eps_array = None
+		self.src_array = None
 		
 		# PMLs
 		"""The following object for the PML is only for visualization.  PML is functional without
