@@ -3,10 +3,10 @@ const;
 
 %% Read GridInfo.
 inputname = 'distsrc';
-gi = retrieve_gi(inputname);
+gi = read_gi(inputname);
 
 %% Read the eps file.
-eps = read_eps(inputname, gi);
+eps = fetch_eps(inputname, gi);
 
 %% Set structure plot parameters.
 eps.margin = gi.Npml;
