@@ -89,16 +89,27 @@ class Shape:
 			return self.translate(0, 0, -self.c[Zz])
 
 	def center_at_middle(self, axis = -1):
-		temp = self.center_at_orig()		
-		if axis < 0:
-			return temp.translate(self.grid.get_N_float(Xx)/2, self.grid.get_N_float(Yy)/2, self.grid.get_N_float(Zz)/2)
-		elif axis == Xx:
-			return temp.translate(self.grid.get_N_float(Xx)/2, 0, 0)
-		elif axis == Yy:
-			return temp.translate(0, self.grid.get_N_float(Yy)/2, 0)
+		temp = self.center_at_orig(axis)		
+		if self.on_real_axes:
+			if axis < 0:
+				return temp.translate(self.grid.get_L(Xx)/2, self.grid.get_L(Yy)/2, self.grid.get_L(Zz)/2)
+			elif axis == Xx:
+				return temp.translate(self.grid.get_L(Xx)/2, 0, 0)
+			elif axis == Yy:
+				return temp.translate(0, self.grid.get_L(Yy)/2, 0)
+			else:
+				assert(axis == Zz)
+				return temp.translate(0, 0, self.grid.get_L(Zz)/2)
 		else:
-			assert(axis == Zz)
-			return temp.translate(0, 0, self.grid.get_N_float(Zz)/2)
+			if axis < 0:
+				return temp.translate(self.grid.get_N_float(Xx)/2, self.grid.get_N_float(Yy)/2, self.grid.get_N_float(Zz)/2)
+			elif axis == Xx:
+				return temp.translate(self.grid.get_N_float(Xx)/2, 0, 0)
+			elif axis == Yy:
+				return temp.translate(0, self.grid.get_N_float(Yy)/2, 0)
+			else:
+				assert(axis == Zz)
+				return temp.translate(0, 0, self.grid.get_N_float(Zz)/2)
 	
 	def draw(self, C, normal_dir, intercept, val):
 		rows, cols = C.shape
@@ -125,7 +136,7 @@ class Shape:
 						C[i,j,k] = val
 
 class Box(Shape):
-  	def __init__(self, grid, Lx=-1.0, Ly=-1.0, Lz=-1.0):
+  	def __init__(self, grid, Lx=-1.0, Ly=-1.0, Lz=-1.0, on_real_axes = False):
 		if Lx < 0:
 			self.Lx = grid.get_N_float(Xx)
 			self.Ly = grid.get_N_float(Yy)
@@ -136,7 +147,7 @@ class Box(Shape):
 			self.Ly = float(Ly)
 			self.Lz = float(Lz)
 
-		Shape.__init__(self, grid, lambda x,y,z: 0<=x<=self.Lx and 0<=y<=self.Ly and 0<=z<=self.Lz, False, [self.Lx/2, self.Ly/2, self.Lz/2])
+		Shape.__init__(self, grid, lambda x,y,z: 0<=x<=self.Lx and 0<=y<=self.Ly and 0<=z<=self.Lz, on_real_axes, [self.Lx/2, self.Ly/2, self.Lz/2])
 
 class Cube(Box):
   	def __init__(self, grid, L):
