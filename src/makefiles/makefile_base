@@ -3,12 +3,11 @@ ALL: fd3d
 VPATH = impls
 CLEANFILES = fd3d
 
-INPUT = input
 UTIL = util
 INC = include
 
 CPPFLAGS = ${CPPFLAGS} -I${INC}
-CFLAGS = ${CFLAGS_CUSTOM} -DUSE_SLEPC=${USE_SLEPC}
+CFLAGS = ${CFLAGS_CUSTOM}
 FFLAGS =
 FPPFLAGS =
 
@@ -18,13 +17,10 @@ else
 	CPPFLAGS = -g -I${INC}
 endif
 
-ifeq (${USE_SLEPC}, 0)
-	include ${PETSC_DIR}/conf/variables
-	include ${PETSC_DIR}/conf/rules
-else
-	include ${SLEPC_DIR}/conf/slepc_common
-endif
+include ${PETSC_DIR}/conf/variables
+include ${PETSC_DIR}/conf/rules
 
+h5.o: ${INC}/h5.h
 mat.o: ${INC}/mat.h
 gridinfo.o: ${INC}/gridinfo.h
 logging.o: ${INC}/logging.h
@@ -33,21 +29,17 @@ solver.o: ${INC}/solver.h
 output.o: ${INC}/output.h
 
 # Use ${FD3D_ROOT} instead of .. to keep these files in src/makefiles/ directory.
-fd3d: fd3d.o mat.o gridinfo.o logging.o vec.o solver.o output.o chkopts
-ifeq (${USE_SLEPC}, 0)
-	${CLINKER} -o fd3d fd3d.o mat.o vec.o gridinfo.o logging.o solver.o output.o ${PETSC_LIB}
-else
-	${CLINKER} -o fd3d fd3d.o mat.o vec.o gridinfo.o logging.o solver.o output.o ${SLEPC_LIB}
-endif
+fd3d: fd3d.o h5.o mat.o gridinfo.o logging.o vec.o solver.o output.o chkopts
+	${CLINKER} -o fd3d fd3d.o h5.o mat.o vec.o gridinfo.o logging.o solver.o output.o ${PETSC_LIB}
 ifeq (${DEBUG}, 0)
 	${RM} -rf *.dSYM
 else
 	-dsymutil fd3d
 endif
-	${MV} fd3d ${FD3D_ROOT}/bin
+	${MV} fd3d ../bin
 	${RM} fd3d.o
-	#${CP} *.c ${FD3D_ROOT}/bin
-	${CP} ${UTIL}/scanin ${FD3D_ROOT}/bin
-	${CP} ${UTIL}/scanjob ${FD3D_ROOT}/bin
-	chmod +x ${FD3D_ROOT}/bin/scanin
-	chmod +x ${FD3D_ROOT}/bin/scanjob
+	#${CP} *.c ../bin
+	${CP} ${UTIL}/scanin ../bin
+	${CP} ${UTIL}/scanjob ../bin
+	chmod +x ../bin/scanin
+	chmod +x ../bin/scanjob

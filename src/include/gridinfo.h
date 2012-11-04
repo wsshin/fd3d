@@ -1,12 +1,15 @@
 #ifndef GUARD_gridinfo_h
 #define GUARD_gridinfo_h
 
-#include "Python.h"  // this line should be included at the very first 
-#include "type.h"
-
 #include "petsc.h"
+#include "hdf5.h"
+#include "type.h"
+#include "h5.h"
 
 typedef struct {
+	char input_name[PETSC_MAX_PATH_LEN];
+	char inputfile_name[PETSC_MAX_PATH_LEN];
+	char output_name[PETSC_MAX_PATH_LEN];
 	DM da;  // distributed array
 	PetscInt N[Naxis];  // # of grid points in x, y, z
 	PetscInt Ntot;  // total # of unknowns
@@ -31,16 +34,13 @@ typedef struct {
 	PetscBool has_xref;  // PETSC_TRUE if it has xref; PETSC_FALSE otherwise
 	Vec xref;  // reference solution
 	PetscBool has_xinc;  // PETSC_TRUE if it has xinc; PETSC_FALSE otherwise
+	Vec xinc;  // incident field
 	PetscReal norm_xref;  // infinity norm of xref
 	PetscInt max_iter;  // maximum number of iteration of BiCG
 	PetscReal tol;  // tolerance of BiCG
 	PetscInt snapshot_interval;  // number of BiCG iterations between snapshots of approximate solutions
 	PetscBool bg_only;  // PETSC_TRUE to account for the background objects only; PETSC_FALSE to account for the foreground objects together
-	char output_name[PETSC_MAX_PATH_LEN];
 
-	PyObject *pSim;  // Python Simulation object
-	PyObject *pFunc;  // Python function to pass with GridInfo
-	PetscBool is_pFunc_set;  // PETSC_TRUE if pFunc is set correctly; PETSC_FALSE otherwise
 	Vec vecTemp; // template vector.  Also used as a temporary storage of a vector
 	ISLocalToGlobalMapping map;  // local-to-global index mapping
 	FieldType x_type;
@@ -59,13 +59,12 @@ typedef struct {
 	FILE *relres_file;
 } GridInfo;
 
-
 /**
  * setGridInfo
  * -----------
  * Set up the grid info.
  */
-PetscErrorCode setGridInfo(GridInfo *gi, char *input_name);
+PetscErrorCode setGridInfo(GridInfo *gi);
 
 /**
  * setOptions

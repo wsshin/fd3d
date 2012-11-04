@@ -1,7 +1,6 @@
 #ifndef GUARD_vec_h
 #define GUARD_vec_h
 
-#include "Python.h"  // this line should be included at the very first 
 #include "gridinfo.h"
 #include "type.h"
 
@@ -13,6 +12,8 @@ typedef struct {
 
 typedef PetscErrorCode (*FunctionSetComponentAt)(PetscScalar *component, Axis axis, const PetscInt ind[], GridInfo *gi);
 
+PetscErrorCode createVecHDF5(Vec *vec, const char *dataset_name, GridInfo gi);
+
 PetscErrorCode createFieldArray(Vec *field, FunctionSetComponentAt setComponentAt, GridInfo gi);
 
 /**
@@ -21,13 +22,6 @@ PetscErrorCode createFieldArray(Vec *field, FunctionSetComponentAt setComponentA
  * Set an element of the vector that scales E fields on PMC by a factor of 2.
  */
 PetscErrorCode set_scale_Epmc_at(PetscScalar *scale_Epmc_value, Axis axis, const PetscInt ind[], GridInfo *gi);
-
-/**
- * set_mu_at
- * -------------
- * Set an element of the vector of mu (permeability) compatible with matrices. 
- */
-PetscErrorCode set_mu_at(PetscScalar *mu_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
  * set_sparam_mu_at
@@ -42,28 +36,6 @@ PetscErrorCode set_sparam_mu_at(PetscScalar *sparam_mu_value, Axis axis, const P
  * Set an element of the vector of d-parameter factors (dy*dz/dx, dz*dx/dy, dx*dy/dz) for mu.
  */
 PetscErrorCode set_dparam_mu_at(PetscScalar *dparam_mu_value, Axis axis, const PetscInt ind[], GridInfo *gi);
-
-/**
- * set_eps_at
- * -------------
- * Set an element of the vector of the eps (permittivity) compatible with matrices. 
- */
-PetscErrorCode set_eps_at(PetscScalar *eps_value, Axis axis, const PetscInt ind[], GridInfo *gi);
-
-/**
- * set_epsNode_at
- * -------------
- * Set an element of the vector of the eps (permittivity) at nodes compatible with matrices. 
- */
-PetscErrorCode set_epsNode_at(PetscScalar *eps_value, Axis axis, const PetscInt ind[], GridInfo *gi);
-
-/**
- * set_epsMask_at
- * -------------
- * Set an element of the mask vector of the eps (permittivity) compatible with matrices. 
- * The mask vector masks out infinitely large eps components.
- */
-PetscErrorCode set_epsMask_at(PetscScalar *epsMask_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
  * set_sparam_eps_at
@@ -86,6 +58,14 @@ PetscErrorCode set_dparam_eps_at(PetscScalar *dparam_eps_value, Axis axis, const
  */
 PetscErrorCode sqrtVec(Vec vec, GridInfo gi);
 
+/**
+ * infMaskVec
+ * -----------------
+ * For a given vector, replace every element of the vector with 0.0 if the element is Inf, and 1.0 
+ * otherwise.
+ */
+PetscErrorCode infMaskVec(Vec vec, GridInfo gi);
+	 
 /**
  * complementMaskVec
  * -----------------
@@ -153,20 +133,6 @@ PetscErrorCode set_sparamSe_at(PetscScalar *sparamSe_value, Axis axis, const Pet
  * components.
  */
 PetscErrorCode set_sparamSh_at(PetscScalar *sparamSh_value, Axis axis, const PetscInt ind[], GridInfo *gi);
-
-/**
- * set_src_at 
- * -------------
- * Set an element of the source vector J_src.
- */
-PetscErrorCode set_src_at(PetscScalar *src_value, Axis axis, const PetscInt ind[], GridInfo *gi);
-
-/**
- * set_x_inc_at
- * -------------
- * Set an element of the vector of the incident E field for the TF/SF.
- */
-PetscErrorCode set_x_inc_at(PetscScalar *x_inc_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
  * set_index_at

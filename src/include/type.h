@@ -9,5 +9,6 @@ typedef enum {PEC, PMC, Bloch, hPEC} BC;
 typedef enum {SCPML, UPML} PMLType;
 typedef enum {PCIdentity, PCSparam, PCEps, PCJacobi} PrecondType;
 typedef enum {BiCG, QMR} KrylovType;
+typedef enum {Rr, Ii, Nri} RI;
 
 #endif

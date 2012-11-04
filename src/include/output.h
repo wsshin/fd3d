@@ -13,6 +13,13 @@ typedef struct {
 typedef PetscErrorCode (*MonitorIteration)(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, GridInfo *gi);
 
 /**
+ * output_h5
+ * ------
+ * Output the E and H fields to an HDF5 file.
+ */
+PetscErrorCode output_h5(char *output_name, FieldType x_type, const Vec x, const Mat HE);
+
+/**
  * output
  * ------
  * Output the E and H fields.

@@ -1,17 +1,18 @@
-#include "gridinfo.h"
-#include "type.h"
-#include "logging.h"
-#include "vec.h"
-#include "mat.h"
-#include "solver.h"
-#include "output.h"
-
 #include "petsc.h"
+#include "hdf5.h"
 
 #if USE_SLEPC!=0
 #include "slepceps.h"
 #include "slepcsvd.h"
 #endif
+
+#include "type.h"
+#include "gridinfo.h"
+#include "logging.h"
+#include "vec.h"
+#include "mat.h"
+#include "solver.h"
+#include "output.h"
 
 //ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "I'm here!\n"); CHKERRQ(ierr);
 //ierr = VecView(vec, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
@@ -41,9 +42,17 @@ PetscErrorCode cleanup(Mat A, Vec b, Vec right_precond, Mat HE, GridInfo gi)
 	ierr = MatDestroy(&HE); CHKERRQ(ierr);  // destroy EH == CH
 
 	/** Finalize the program. */
-	Py_DECREF(gi.pSim);
 	ierr = DMDestroy(&gi.da); CHKERRQ(ierr);
 	ierr = VecDestroy(&gi.vecTemp); CHKERRQ(ierr);
+	if (gi.has_x0) {
+		ierr = VecDestroy(&gi.x0); CHKERRQ(ierr);
+	}
+	if (gi.has_xref) {
+		ierr = VecDestroy(&gi.xref); CHKERRQ(ierr);
+	}
+	if (gi.has_xinc) {
+		ierr = VecDestroy(&gi.xinc); CHKERRQ(ierr);
+	}
 
 	// Need to move this to gridinfo.c
 	PetscInt axis;
@@ -57,7 +66,6 @@ PetscErrorCode cleanup(Mat A, Vec b, Vec right_precond, Mat HE, GridInfo gi)
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "fd3d finished.\n"); CHKERRQ(ierr);
 	}
 
-	Py_Finalize();
 #if USE_SLEPC==0
 	ierr = PetscFinalize(); CHKERRQ(ierr);  // finalize PETSc.
 #else
@@ -85,7 +93,6 @@ PetscErrorCode main(int argc, char **argv)
 	option_file = fopen(option_file_name, "r");  // in a project directory
 	if (!option_file) {  // in the parent directory of each project directory
 		option_file_name[0] = '\0';
-		//strcpy(option_file_name, getenv("FD3D_ROOT"));
 		strcpy(option_file_name, "..");
 		strcat(option_file_name, "/");
 		strcat(option_file_name, OPTION_FILE_NAME);
@@ -115,63 +122,31 @@ PetscErrorCode main(int argc, char **argv)
 #endif
 	}
 
-	char input_name[PETSC_MAX_PATH_LEN];
+	GridInfo gi;
 	PetscBool flg;
-	ierr = PetscOptionsGetString(PETSC_NULL, "-i", input_name, PETSC_MAX_PATH_LEN-1, &flg); CHKERRQ(ierr);
+	ierr = PetscOptionsGetString(PETSC_NULL, "-i", gi.input_name, PETSC_MAX_PATH_LEN-1, &flg); CHKERRQ(ierr);
 	if (!flg) {
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, help); CHKERRQ(ierr);
 		PetscFunctionReturn(0);
 	}
-
-	//ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "fd3d launched.\n"); CHKERRQ(ierr);
-
-	/** Initialize Python interpreter. */
-	Py_Initialize(); if (PyErr_Occurred()) PyErr_Print();
-
-	/** Add the present working directory to the module search path of the Python interpreter. */
-	PyRun_SimpleString("import sys"); if (PyErr_Occurred()) PyErr_Print();
-	//PyRun_SimpleString("sys.path.append('/Library/Frameworks/Python.framework/Versions/2.6/lib/python2.6/site-packages')");
-	//PyRun_SimpleString("from scipy.io import loadmat");
-	PyRun_SimpleString("import os"); if (PyErr_Occurred()) PyErr_Print();
-
-	/** By some reason, the order of insertion below is important; /in should be inserted later
-	  than /bin, i.e. /in should come earlier in the path than /bin. */
-	PyRun_SimpleString("sys.path.insert(0, os.path.expandvars('$FD3D_ROOT')+'/bin')"); if (PyErr_Occurred()) PyErr_Print();
-	//PyRun_SimpleString("sys.path.insert(0, os.path.expandvars('$FD3D_ROOT')+'/in')");
-	//PyRun_SimpleString("sys.path.insert(0, '.')");
-	PyRun_SimpleString("sys.path.insert(0, '.')"); if (PyErr_Occurred()) PyErr_Print();  // for the project directory where the input is
-	//PyRun_SimpleString("sys.path.insert(0, '../in')");
-
-	/** Force regeneration of .pyc files. */
-	/*
-	   PyRun_SimpleString("import compileall");
-	   PyRun_SimpleString("import re");
-	   PyRun_SimpleString("compileall.compile_dir('./', rx=re.compile('/[.]svn'), force=True, quiet=True)");
-	   char compile_input[PETSC_MAX_PATH_LEN];
-	   PyRun_SimpleString("import py_compile");
-	   ierr = PetscStrcpy(compile_input, "py_compile.compile('../in/"); CHKERRQ(ierr);
-	   ierr = PetscStrcat(compile_input, input_name); CHKERRQ(ierr);
-	   ierr = PetscStrcat(compile_input, ".py')"); CHKERRQ(ierr);
-	   PyRun_SimpleString(compile_input);
-	 */
-	//PyRun_SimpleString("import os");
-	//PyRun_SimpleString("os.system('rm ../in/*.pyc')");
-	//PyRun_SimpleString("os.system('rm *.pyc')");
+	ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "fd3d launched.\n"); CHKERRQ(ierr);
+	ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "input file: %s.h5", gi.input_name); CHKERRQ(ierr);
 
 	/** Initialize the time stamp. */
 	TimeStamp ts;
 	ierr = initTimeStamp(&ts); CHKERRQ(ierr);
 
 	/** Set up grid info. */
-	GridInfo gi;
-	ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "input file: %s.py", input_name); CHKERRQ(ierr);
+	const char *h5_ext = ".h5";
+	ierr = PetscStrcpy(gi.inputfile_name, gi.input_name); CHKERRQ(ierr);
+	ierr = PetscStrcat(gi.inputfile_name, h5_ext); CHKERRQ(ierr);
 	ierr = PetscOptionsGetString(PETSC_NULL, "-o", gi.output_name, PETSC_MAX_PATH_LEN-1, &flg); CHKERRQ(ierr);
 	if (!flg) {
-		ierr = PetscStrcpy(gi.output_name, input_name); CHKERRQ(ierr);
+		ierr = PetscStrcpy(gi.output_name, gi.input_name); CHKERRQ(ierr);
 	}
-	ierr = setGridInfo(&gi, input_name); CHKERRQ(ierr);
+	ierr = setGridInfo(&gi); CHKERRQ(ierr);
 	if (gi.verbose_level >= VBMedium) {
-		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\n", input_name); CHKERRQ(ierr);
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\n", gi.input_name); CHKERRQ(ierr);
 	}
 	ierr = updateTimeStamp(VBDetail, &ts, "grid info construction", gi); CHKERRQ(ierr);
 
@@ -187,36 +162,16 @@ PetscErrorCode main(int argc, char **argv)
 	//ierr = create_A_and_b3(&A, &b, &right_precond, &HE, gi, &ts); CHKERRQ(ierr);
 	ierr = create_A_and_b4(&A, &b, &right_precond, &HE, gi, &ts); CHKERRQ(ierr);
 
-	/*
-	   if (gi.pml_type == SCPML) {
-	   ierr = stretch_d(gi); CHKERRQ(ierr);
-	   }
-	   Mat EGrad, B;
-	   ierr = createEGrad(&EGrad, gi); CHKERRQ(ierr);
-	   if (gi.pml_type == SCPML) {
-	   ierr = unstretch_d(gi); CHKERRQ(ierr);
-	   }
-	   ierr = MatMatMult(A, EGrad, MAT_INITIAL_MATRIX, 26.0/(13.0+2.0), &B); CHKERRQ(ierr); // GD = EGrad*invEpsNode*DivE
-
-	   PetscReal normB;
-	   ierr = MatNorm(B, NORM_INFINITY, &normB); CHKERRQ(ierr);
-	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nnorm(A EGrad) = %e\n", normB); CHKERRQ(ierr);
-	 */
-
 	/** TF/SF */
 	/** TF/SF is currently supported only by the SC-PML. */
 	if (gi.has_xinc) {
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nCreate the TF/SF source.\n"); CHKERRQ(ierr);
 		Mat A_bg;
 		gi.bg_only = PETSC_TRUE;
-		ierr = create_A_and_b(&A_bg, &b, &right_precond, &HE, gi, &ts); CHKERRQ(ierr);
-		Vec xInc;
-		//ierr = create_xInc(&xInc, gi); CHKERRQ(ierr);
-		ierr = createFieldArray(&xInc, set_x_inc_at, gi); CHKERRQ(ierr);
-		ierr = MatMult(A_bg, xInc, b); CHKERRQ(ierr);
+		ierr = create_A_and_b4(&A_bg, &b, &right_precond, &HE, gi, &ts); CHKERRQ(ierr);
+		ierr = MatMult(A_bg, gi.xinc, b); CHKERRQ(ierr);
 
 		ierr = MatDestroy(&A_bg); CHKERRQ(ierr);
-		ierr = VecDestroy(&xInc); CHKERRQ(ierr);
 		gi.bg_only = PETSC_FALSE;
 		ierr = updateTimeStamp(VBDetail, &ts, "TF/SF source", gi); CHKERRQ(ierr);
 	}
@@ -565,107 +520,41 @@ PetscErrorCode main(int argc, char **argv)
 
 			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nnmax = %d, smax = %e, \tnmin = %d, smin = %e, \tcond = %e\n", nmax, smax, nmin, 1.0/smin_inv, smax*smin_inv); CHKERRQ(ierr);
 		} else {
-			/*
-			   if (calc_singular) {
-			   PetscReal smin_inv, smax, sprev;
-			   ierr = VecSetRandom(b, PETSC_NULL); CHKERRQ(ierr);
-			//ierr = VecSet(b, 1.0*PETSC_i); CHKERRQ(ierr);
-			ierr = VecNormalize(b, PETSC_NULL); CHKERRQ(ierr);
-			sprev = 0.0;
-			smax = 1.0;
-			PetscInt nmax;
-			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Calculate smax.\n"); CHKERRQ(ierr);
-
-			for (nmax = 1; PetscAbsScalar((smax-sprev)/smax) > 1e-11; ++nmax) {
-			sprev = smax;
-
-			ierr = MatMult(A, b, x); CHKERRQ(ierr);
-			ierr = VecNormalize(x, &smax); CHKERRQ(ierr);
-			ierr = VecCopy(x, b); CHKERRQ(ierr);
-
-			smax = PetscSqrtScalar(smax);
-			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\t%d\t\tsmax: %e\n", nmax, smax); CHKERRQ(ierr);
-			}
-
-			ierr = VecSetRandom(b, PETSC_NULL); CHKERRQ(ierr);
-			ierr = VecNormalize(b, PETSC_NULL); CHKERRQ(ierr);
-			ierr = VecSet(x, 0.0); CHKERRQ(ierr);
-			sprev = 0.0;
-			smin_inv = 1.0;
-			PetscInt nmin;
-			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nCalculate smin.\n"); CHKERRQ(ierr);
-			for (nmin = 1; PetscAbsScalar((smin_inv-sprev)/smin_inv) > 1e-11; ++nmin) {
-			sprev = smin_inv;
-
-			ierr = bicg(A, x, b, right_precond, HE, gi); CHKERRQ(ierr);
-			ierr = VecNormalize(x, &smin_inv); CHKERRQ(ierr);
-			ierr = VecCopy(x, b); CHKERRQ(ierr);
-
-			smin_inv = PetscSqrtScalar(smin_inv);
-			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\t%d\t\tsmin: %e\n", nmin, 1.0/smin_inv); CHKERRQ(ierr);
-			}
-
-			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nnmax = %d, smax = %e, \tnmin = %d, smin = %e, \tcond = %e\n", nmax, smax, nmin, 1.0/smin_inv, smax*smin_inv); CHKERRQ(ierr);
-			} else {
-			 */
 			if (gi.verbose_level >= VBMedium) {
 				ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Iterative solver starts.\n"); CHKERRQ(ierr);
 			}
 
-		IterativeSolver solver;
-		/*
-		   PetscBool flgBloch;
-		   ierr = hasBloch(&flgBloch, gi); CHKERRQ(ierr);
-		   if (!flgBloch) solver = bicgSymmetric;
-		   else solver = bicg;
-		 */
+			IterativeSolver solver;
 
-		PetscBool isSymmetric;
-		ierr = MatIsSymmetric(A, 0.0, &isSymmetric); CHKERRQ(ierr);
-		if (gi.krylov_type == QMR) {
-			if (isSymmetric) {
-				solver = qmrSymmetric;
+			PetscBool isSymmetric;
+			ierr = MatIsSymmetric(A, 0.0, &isSymmetric); CHKERRQ(ierr);
+			if (gi.krylov_type == QMR) {
+				if (isSymmetric) {
+					solver = qmrSymmetric;
+				} else {
+					solver = qmr;
+				}
 			} else {
-				solver = qmr;
+				if (isSymmetric) {
+					solver = bicgSymmetric;
+				} else {
+					solver = bicg;
+				}
 			}
-		} else {
-			if (isSymmetric) {
-				solver = bicgSymmetric;
-			} else {
-				solver = bicg;
+
+			if (gi.output_relres) {
+				char relres_file_name[PETSC_MAX_PATH_LEN];
+				ierr = PetscStrcpy(relres_file_name, gi.output_name); CHKERRQ(ierr);
+				ierr = PetscStrcat(relres_file_name, ".res"); CHKERRQ(ierr);
+				gi.relres_file = fopen(relres_file_name, "w");  // in a project directory
 			}
-		}
 
-		/*
-		   gi.tol = 1.0e-6;
-		   ierr = solver(A, x, b, right_precond, HE, gi); CHKERRQ(ierr);
-		   ierr = VecPointwiseDivide(x, x, right_precond); CHKERRQ(ierr);
-		   ierr = VecAXPY(x, 1.0, e0); CHKERRQ(ierr);
+			ierr = solver(A, x, b, right_precond, HE, gi); CHKERRQ(ierr);
+			//ierr = solver(GD, x, b, right_precond, HE, gi); CHKERRQ(ierr);
 
-		   gi.tol = 1.0e-6;
-		   ierr = MatDestroy(&A); CHKERRQ(ierr);
-		   ierr = MatDestroy(&HE); CHKERRQ(ierr);
-		   ierr = VecDestroy(&b); CHKERRQ(ierr);
-		   ierr = VecDestroy(&right_precond); CHKERRQ(ierr);
-
-		   ierr = create_stretched_A(&A, &b, &right_precond, &HE, gi, &ts); CHKERRQ(ierr);
-		 */
-		if (gi.output_relres) {
-			char relres_file_name[PETSC_MAX_PATH_LEN];
-			ierr = PetscStrcpy(relres_file_name, gi.output_name); CHKERRQ(ierr);
-			ierr = PetscStrcat(relres_file_name, ".res"); CHKERRQ(ierr);
-			gi.relres_file = fopen(relres_file_name, "w");  // in a project directory
-		}
-
-		ierr = solver(A, x, b, right_precond, HE, gi); CHKERRQ(ierr);
-		//ierr = solver(GD, x, b, right_precond, HE, gi); CHKERRQ(ierr);
-
-		if (gi.output_relres) {
-			fclose(gi.relres_file);
-		}
-		//}
-
-
+			if (gi.output_relres) {
+				fclose(gi.relres_file);
+			}
 		}
 
 		/** Check the directly calculated residual norm, which is not a by-product of the 

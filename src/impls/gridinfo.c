@@ -1,4 +1,25 @@
 #include "gridinfo.h"
+#include "vec.h"
+
+#undef __FUNCT__
+#define __FUNCT__ "append_char"
+/**
+ * append_char
+ * -----------
+ * Append a character to a string.
+ */
+PetscErrorCode append_char(char *target, const char c)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr;
+
+	size_t len;
+	ierr = PetscStrlen(target, &len); CHKERRQ(ierr);
+	target[len++] = c;
+	target[len] = '\0';
+
+	PetscFunctionReturn(0);
+}
 
 #undef __FUNCT__
 #define __FUNCT__ "setGridInfo"
@@ -7,53 +28,29 @@
  * -----------
  * Set up the grid info.
  */
-PetscErrorCode setGridInfo(GridInfo *gi, char *input_name)
+PetscErrorCode setGridInfo(GridInfo *gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
 
-	PetscInt axis, sign, n;
-
-	/** Import Simulation object. */
-	/** If Python does something funny, then most likely an error occurs in the folliwng three
-	lines.  So check Python errors for the three lines.  Ideally, we need to check a Python error
-	after each Python/C API function invocation, but I refrain from putting too many error checking
-	codes for readability. */
-	PyObject *pModule = PyImport_ImportModule(input_name); if (PyErr_Occurred()) PyErr_Print();
-	gi->pSim = PyObject_GetAttrString(pModule, "sim"); if (PyErr_Occurred()) PyErr_Print();
-	Py_DECREF(pModule); if (PyErr_Occurred()) PyErr_Print();
+	hid_t inputfile_id;
+	herr_t status;
+	
+	inputfile_id = H5Fopen(gi->inputfile_name, H5F_ACC_RDONLY, H5P_DEFAULT);
 
 	/** Import values defined in the input file. */
-	PyObject *pFunc, *pFunc_get_d_prim, *pFunc_get_d_dual, *pFunc_get_N, *pFunc_get_BC, *pFunc_get_s_prim, *pFunc_get_s_dual, *pFunc_get_exp_neg_ikL;
-	PyObject *pValue;
+	ierr = h5get_data(inputfile_id, "/lambda", H5T_NATIVE_DOUBLE, &gi->lambda); CHKERRQ(ierr);
+	ierr = h5get_data(inputfile_id, "/omega", H5T_NATIVE_DOUBLE, &gi->omega); CHKERRQ(ierr);
+	ierr = h5get_data(inputfile_id, "/maxit", H5T_NATIVE_INT, &gi->max_iter); CHKERRQ(ierr);
+	ierr = h5get_data(inputfile_id, "/tol", H5T_NATIVE_DOUBLE, &gi->tol); CHKERRQ(ierr);
+	ierr = h5get_data(inputfile_id, "/N", H5T_NATIVE_INT, gi->N); CHKERRQ(ierr);
+	ierr = h5get_data(inputfile_id, "/bc", H5T_NATIVE_INT, gi->bc); CHKERRQ(ierr);
 
-	pFunc = PyObject_GetAttrString(gi->pSim, "get_wvlen");
-	pValue = PyObject_CallFunction(pFunc, NULL);
-	Py_DECREF(pFunc);
-	Py_complex py_lambda = PyComplex_AsCComplex(pValue);
-	gi->lambda = py_lambda.real + PETSC_i * py_lambda.imag;
-	Py_DECREF(pValue);
+	PetscReal e_ikL[Naxis][Nri];
+	ierr = h5get_data(inputfile_id, "/e_ikL", H5T_NATIVE_DOUBLE, e_ikL); CHKERRQ(ierr);
+	ierr = ri2c(e_ikL, gi->exp_neg_ikL, Naxis); CHKERRQ(ierr);
 
-	pFunc = PyObject_GetAttrString(gi->pSim, "get_omega");
-	pValue = PyObject_CallFunction(pFunc, NULL);
-	Py_DECREF(pFunc);
-	Py_complex py_omega = PyComplex_AsCComplex(pValue);
-	gi->omega = py_omega.real + PETSC_i * py_omega.imag;
-	Py_DECREF(pValue);
-
-	pFunc = PyObject_GetAttrString(gi->pSim, "get_BiCG_max_iter");
-	pValue = PyObject_CallFunction(pFunc, NULL);
-	Py_DECREF(pFunc);
-	gi->max_iter = PyInt_AsLong(pValue);
-	if (gi->max_iter < 0) gi->max_iter = PETSC_MAX_INT;
-	Py_DECREF(pValue);
-
-	pFunc = PyObject_GetAttrString(gi->pSim, "get_BiCG_tol");
-	pValue = PyObject_CallFunction(pFunc, NULL);
-	Py_DECREF(pFunc);
-	gi->tol = PyFloat_AsDouble(pValue);
-	Py_DECREF(pValue);
-
+	/** Import values defined in the input file. */
 /*
 	pFunc = PyObject_GetAttrString(gi->pSim, "get_snapshot_interval");
 	pValue = PyObject_CallFunction(pFunc, NULL);
@@ -63,71 +60,45 @@ PetscErrorCode setGridInfo(GridInfo *gi, char *input_name)
 	Py_DECREF(pValue);
 */
 
-	pFunc_get_N = PyObject_GetAttrString(gi->pSim, "get_N");
-	pFunc_get_BC = PyObject_GetAttrString(gi->pSim, "get_BC");
-	pFunc_get_d_prim = PyObject_GetAttrString(gi->pSim, "get_d_prim");
-	pFunc_get_d_dual = PyObject_GetAttrString(gi->pSim, "get_d_dual");
-	pFunc_get_s_prim = PyObject_GetAttrString(gi->pSim, "get_s_prim");
-	pFunc_get_s_dual = PyObject_GetAttrString(gi->pSim, "get_s_dual");
-	pFunc_get_exp_neg_ikL = PyObject_GetAttrString(gi->pSim, "get_exp_neg_ikL");
-
+	const char *w = "xyz";
+	char datasetname[PETSC_MAX_PATH_LEN];
+	PetscInt axis;
 	for (axis = 0; axis < Naxis; ++axis) {
-		pValue = PyObject_CallFunction(pFunc_get_N, (char *) "i", axis);
-		gi->N[axis] = PyInt_AsLong(pValue);
-		Py_DECREF(pValue);
-
-		pValue = PyObject_CallFunction(pFunc_get_exp_neg_ikL, (char *) "i", axis);
-		Py_complex py_exp_neg_ikL = PyComplex_AsCComplex(pValue);
-		gi->exp_neg_ikL[axis] = py_exp_neg_ikL.real + PETSC_i * py_exp_neg_ikL.imag;
-		Py_DECREF(pValue);
-
+		PetscReal temp[gi->N[axis] * Nri];
 		ierr = PetscMalloc6(
-				gi->N[axis], PetscScalar, &gi->d_prim[axis],
-				gi->N[axis], PetscScalar, &gi->d_dual[axis],
-				gi->N[axis], PetscScalar, &gi->s_prim[axis],
-				gi->N[axis], PetscScalar, &gi->s_dual[axis],
-				gi->N[axis], PetscScalar, &gi->d_prim_orig[axis],
-				gi->N[axis], PetscScalar, &gi->d_dual_orig[axis]); CHKERRQ(ierr);
-		for (n = 0; n < gi->N[axis]; ++n) {
-			Py_complex py_s, py_d;
+			gi->N[axis], PetscScalar, &gi->d_prim[axis],
+			gi->N[axis], PetscScalar, &gi->d_dual[axis],
+			gi->N[axis], PetscScalar, &gi->s_prim[axis],
+			gi->N[axis], PetscScalar, &gi->s_dual[axis],
+			gi->N[axis], PetscScalar, &gi->d_prim_orig[axis],
+			gi->N[axis], PetscScalar, &gi->d_dual_orig[axis]); CHKERRQ(ierr);
 
-			pValue = PyObject_CallFunction(pFunc_get_s_prim, (char *) "ii", axis, n);
-			py_s = PyComplex_AsCComplex(pValue);
-			gi->s_prim[axis][n] = py_s.real + PETSC_i * py_s.imag;
-			Py_DECREF(pValue);
+		ierr = PetscStrcpy(datasetname, "/d"); CHKERRQ(ierr);
+		ierr = append_char(datasetname, w[axis]); CHKERRQ(ierr);
+		ierr = PetscStrcat(datasetname, "_prim"); CHKERRQ(ierr);
+		ierr = h5get_data(inputfile_id, datasetname, H5T_NATIVE_DOUBLE, temp); CHKERRQ(ierr);
+		ierr = ri2c(temp, gi->d_prim[axis], gi->N[axis]); CHKERRQ(ierr);
+		ierr = ri2c(temp, gi->d_prim_orig[axis], gi->N[axis]); CHKERRQ(ierr);
 
-			pValue = PyObject_CallFunction(pFunc_get_s_dual, (char *) "ii", axis, n);
-			py_s = PyComplex_AsCComplex(pValue);
-			gi->s_dual[axis][n] = py_s.real + PETSC_i * py_s.imag;
-			Py_DECREF(pValue);
+		ierr = PetscStrcpy(datasetname, "/d"); CHKERRQ(ierr);
+		ierr = append_char(datasetname, w[axis]); CHKERRQ(ierr);
+		ierr = PetscStrcat(datasetname, "_dual"); CHKERRQ(ierr);
+		ierr = h5get_data(inputfile_id, datasetname, H5T_NATIVE_DOUBLE, temp); CHKERRQ(ierr);
+		ierr = ri2c(temp, gi->d_dual[axis], gi->N[axis]); CHKERRQ(ierr);
+		ierr = ri2c(temp, gi->d_dual_orig[axis], gi->N[axis]); CHKERRQ(ierr);
 
-			pValue = PyObject_CallFunction(pFunc_get_d_prim, (char *) "ii", axis, n);
-			py_d = PyComplex_AsCComplex(pValue);
-			gi->d_prim[axis][n] = py_d.real + PETSC_i * py_d.imag;
-			gi->d_prim_orig[axis][n] = gi->d_prim[axis][n];
-			Py_DECREF(pValue);
+		ierr = PetscStrcpy(datasetname, "/s"); CHKERRQ(ierr);
+		ierr = append_char(datasetname, w[axis]); CHKERRQ(ierr);
+		ierr = PetscStrcat(datasetname, "_prim"); CHKERRQ(ierr);
+		ierr = h5get_data(inputfile_id, datasetname, H5T_NATIVE_DOUBLE, temp); CHKERRQ(ierr);
+		ierr = ri2c(temp, gi->s_prim[axis], gi->N[axis]); CHKERRQ(ierr);
 
-			pValue = PyObject_CallFunction(pFunc_get_d_dual, (char *) "ii", axis, n);
-			py_d = PyComplex_AsCComplex(pValue);
-			gi->d_dual[axis][n] = py_d.real + PETSC_i * py_d.imag;
-			gi->d_dual_orig[axis][n] = gi->d_dual[axis][n];
-			Py_DECREF(pValue);
-		}
-
-		for (sign = 0; sign < Nsign; ++sign) {
-			pValue = PyObject_CallFunction(pFunc_get_BC, (char *) "ii", axis, sign);
-			gi->bc[axis][sign] = (BC) PyInt_AsLong(pValue);
-			Py_DECREF(pValue);
-		}
+		ierr = PetscStrcpy(datasetname, "/s"); CHKERRQ(ierr);
+		ierr = append_char(datasetname, w[axis]); CHKERRQ(ierr);
+		ierr = PetscStrcat(datasetname, "_dual"); CHKERRQ(ierr);
+		ierr = h5get_data(inputfile_id, datasetname, H5T_NATIVE_DOUBLE, temp); CHKERRQ(ierr);
+		ierr = ri2c(temp, gi->s_dual[axis], gi->N[axis]); CHKERRQ(ierr);
 	}
-
-	Py_DECREF(pFunc_get_N);
-	Py_DECREF(pFunc_get_BC);
-	Py_DECREF(pFunc_get_exp_neg_ikL);
-	Py_DECREF(pFunc_get_d_prim);
-	Py_DECREF(pFunc_get_d_dual);
-	Py_DECREF(pFunc_get_s_prim);
-	Py_DECREF(pFunc_get_s_dual);
 
 	gi->Ntot = gi->N[Xx] * gi->N[Yy] * gi->N[Zz] * Naxis;  // total # of unknowns
 
@@ -168,73 +139,70 @@ PetscErrorCode setGridInfo(GridInfo *gi, char *input_name)
 	/** Get local-to-global mapping from DA. */
 	ierr = DMGetLocalToGlobalMapping(gi->da, &gi->map); CHKERRQ(ierr);
 
-	/** Get the guess solution. */
-	pFunc = PyObject_GetAttrString(gi->pSim, "get_sol_guess");
-	pValue = PyObject_CallFunction(pFunc, NULL);
-	if (PyErr_Occurred()) {
-		PetscMPIInt rank;
-		ierr = MPI_Comm_rank(PETSC_COMM_WORLD, &rank); CHKERRQ(ierr);
-		if (rank==0) PyErr_Print();
-	}
-	Py_DECREF(pFunc);
-	if (pValue==Py_None) {
-		gi->has_x0 = PETSC_FALSE;
-	} else {
+	/** Prepare the input file name. */
+	const char *h5_ext = ".h5";
+	char inputfile_name[PETSC_MAX_PATH_LEN];
+	ierr = PetscStrcpy(inputfile_name, gi->input_name); CHKERRQ(ierr);
+	ierr = PetscStrcat(inputfile_name, h5_ext); CHKERRQ(ierr);
+
+	/** Get the initial guess solution. */
+	htri_t isE0;
+	ierr = PetscStrcpy(datasetname, "/E0"); CHKERRQ(ierr);
+	isE0 = H5Lexists(inputfile_id, datasetname, H5P_DEFAULT);
+	if (isE0 && isE0 >=0) {
 		gi->has_x0 = PETSC_TRUE;
-		ierr = DMCreateGlobalVector(gi->da, &gi->x0); CHKERRQ(ierr);
-		char *x0_name = PyString_AsString(pValue);
-		//const char *prefix = "/in/";
-		//char x0_name_prefixed[PETSC_MAX_PATH_LEN];
-		//ierr = PetscStrcpy(x0_name_prefixed, getenv("FD3D_ROOT")); CHKERRQ(ierr);
-		//ierr = PetscStrcat(x0_name_prefixed, prefix); CHKERRQ(ierr);
-		//ierr = PetscStrcat(x0_name_prefixed, x0_name); CHKERRQ(ierr);
+		ierr = createVecHDF5(&gi->x0, datasetname, *gi); CHKERRQ(ierr);
+/*
 		PetscViewer viewer;
-		//PetscViewerBinaryOpen(PETSC_COMM_WORLD, x0_name_prefixed, FILE_MODE_READ, &viewer);
-		PetscViewerBinaryOpen(PETSC_COMM_WORLD, x0_name, FILE_MODE_READ, &viewer);
+		PetscViewerHDF5Open(PETSC_COMM_WORLD, inputfile_name, FILE_MODE_READ, &viewer);
+		PetscViewerHDF5PushGroup(viewer, "/E0");
 		ierr = VecLoad(gi->x0, viewer); CHKERRQ(ierr);
+		ierr = PetscViewerHDF5PopGroup(viewer); CHKERRQ(ierr);
 		ierr = PetscViewerDestroy(&viewer); CHKERRQ(ierr);
-		/** We should not free x0_name, because PyString_AsString() does not copy the 
-		  original string. */
+*/
+	} else {
+		gi->has_x0 = PETSC_FALSE;
 	}
-	Py_DECREF(pValue);
 
 	/** Get the reference solution. */
-	pFunc = PyObject_GetAttrString(gi->pSim, "get_sol_reference");
-	pValue = PyObject_CallFunction(pFunc, NULL);
-	if (PyErr_Occurred()) {
-		PetscMPIInt rank;
-		ierr = MPI_Comm_rank(PETSC_COMM_WORLD, &rank); CHKERRQ(ierr);
-		if (rank==0) PyErr_Print();
-	}
-	Py_DECREF(pFunc);
-	if (pValue==Py_None) {
-		gi->has_xref = PETSC_FALSE;
-	} else {
+	htri_t isEref; 
+	ierr = PetscStrcpy(datasetname, "/Eref"); CHKERRQ(ierr);
+	isEref = H5Lexists(inputfile_id, datasetname, H5P_DEFAULT);
+	if (isEref && isEref >= 0) {
 		gi->has_xref = PETSC_TRUE;
-		ierr = DMCreateGlobalVector(gi->da, &gi->xref); CHKERRQ(ierr);
-		char *xref_name = PyString_AsString(pValue);
-		//const char *prefix = "/in/";
-		//char xref_name_prefixed[PETSC_MAX_PATH_LEN];
-		//ierr = PetscStrcpy(xref_name_prefixed, getenv("FD3D_ROOT")); CHKERRQ(ierr);
-		//ierr = PetscStrcat(xref_name_prefixed, prefix); CHKERRQ(ierr);
-		//ierr = PetscStrcat(xref_name_prefixed, xref_name); CHKERRQ(ierr);
+		ierr = createVecHDF5(&gi->xref, datasetname, *gi); CHKERRQ(ierr);
+/*
 		PetscViewer viewer;
-		//PetscViewerBinaryOpen(PETSC_COMM_WORLD, xref_name_prefixed, FILE_MODE_READ, &viewer);
-		PetscViewerBinaryOpen(PETSC_COMM_WORLD, xref_name, FILE_MODE_READ, &viewer);
+		PetscViewerHDF5Open(PETSC_COMM_WORLD, inputfile_name, FILE_MODE_READ, &viewer);
+		PetscViewerHDF5PushGroup(viewer, "/Eref");
 		ierr = VecLoad(gi->xref, viewer); CHKERRQ(ierr);
+		ierr = PetscViewerHDF5PopGroup(viewer); CHKERRQ(ierr);
 		ierr = PetscViewerDestroy(&viewer); CHKERRQ(ierr);
-		ierr = VecNorm(gi->xref, NORM_INFINITY, &gi->norm_xref); CHKERRQ(ierr);
-		/** We should not free xref_name, because PyString_AsString() does not copy the 
-		  original string. */
+*/
+	} else {
+		gi->has_xref = PETSC_FALSE;
 	}
-	Py_DECREF(pValue);
 
 	/** Get the incident field distribution for TF/SF. */
-	pFunc = PyObject_GetAttrString(gi->pSim, "has_incidentE");
-	pValue = PyObject_CallFunction(pFunc, NULL);
-	Py_DECREF(pFunc);
-	gi->has_xinc = (PetscBool) PyInt_AsLong(pValue);
-	Py_DECREF(pValue);
+	htri_t isEinc;
+	ierr = PetscStrcpy(datasetname, "/Einc"); CHKERRQ(ierr);
+	isEinc = H5Lexists(inputfile_id, datasetname, H5P_DEFAULT);
+	if (isEinc && isEinc >= 0) {
+		gi->has_xinc = PETSC_TRUE;
+		ierr = createVecHDF5(&gi->xref, datasetname, *gi); CHKERRQ(ierr);
+/*
+		PetscViewer viewer;
+		PetscViewerHDF5Open(PETSC_COMM_WORLD, inputfile_name, FILE_MODE_READ, &viewer);
+		PetscViewerHDF5PushGroup(viewer, "/Einc");
+		ierr = VecLoad(gi->xinc, viewer); CHKERRQ(ierr);
+		ierr = PetscViewerHDF5PopGroup(viewer); CHKERRQ(ierr);
+		ierr = PetscViewerDestroy(&viewer); CHKERRQ(ierr);
+*/
+	} else {
+		gi->has_xinc = PETSC_FALSE;
+	}
+
+   status = H5Fclose(inputfile_id);
 
 	PetscFunctionReturn(0);
 }

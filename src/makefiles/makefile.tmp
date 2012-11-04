@@ -1,6 +1,5 @@
 # Copy this file to src/ directory, rename it to "makefile", and edit set the values of PETSC_ARCH as the PETSC_ARCH environment variables you used to install the PETSc library.
 DEBUG = 1
-USE_SLEPC = 0
 CFLAGS_CUSTOM = -Wall -Wwrite-strings -g3
 ifeq (${DEBUG}, 0)
 	# PETSC_ARCH environment variable used to build PETSc library configured with "--with-debugging=0" flag

@@ -1,5 +1,7 @@
+#include <assert.h>
 #include "output.h"
 #include "vec.h"
+#include "assert.h"
 
 #undef __FUNCT__
 #define __FUNCT__ "output"
@@ -15,8 +17,8 @@ PetscErrorCode output(char *output_name, FieldType x_type, const Vec x, const Ma
 
 	char output_name_prefixed[PETSC_MAX_PATH_LEN];
 	//const char *prefix = "/out/";
-	const char *h_extension = ".H";
-	const char *e_extension = ".h5";
+	const char *h_extension = ".H.h5";
+	const char *e_extension = ".E.h5";
 
 	//ierr = PetscStrcpy(output_name_prefixed, getenv("FD3D_ROOT")); CHKERRQ(ierr);
 	//ierr = PetscStrcat(output_name_prefixed, prefix); CHKERRQ(ierr);
@@ -41,53 +43,31 @@ PetscErrorCode output(char *output_name, FieldType x_type, const Vec x, const Ma
 
 	/** Write the E-field file. */
 	ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD, e_file, FILE_MODE_WRITE, &viewer); CHKERRQ(ierr);
-	ierr = PetscViewerHDF5PushGroup(viewer, "/"); CHKERRQ(ierr);
-/*
-	ierr = PetscViewerCreate(PETSC_COMM_WORLD, &viewer); CHKERRQ(ierr);
-	ierr = PetscViewerSetType(viewer, PETSCVIEWERBINARY); CHKERRQ(ierr);
-	ierr = PetscViewerFileSetMode(viewer, FILE_MODE_WRITE); CHKERRQ(ierr);
-	ierr = PetscViewerBinarySkipInfo(viewer); CHKERRQ(ierr);
-	ierr = PetscViewerFileSetName(viewer, e_file); CHKERRQ(ierr);
-*/
-	/*
-	   ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD, e_file, FILE_MODE_WRITE, &viewer); CHKERRQ(ierr);
-	 */
+	ierr = PetscViewerHDF5PushGroup(viewer, "/");
 	if (x_type==Etype) {
 		ierr = PetscObjectSetName((PetscObject) x, "E"); CHKERRQ(ierr);
 		ierr = VecView(x, viewer); CHKERRQ(ierr);
 	} else {
 		assert(x_type==Htype);
+		ierr = PetscObjectSetName((PetscObject) y, "E"); CHKERRQ(ierr);
 		ierr = VecView(y, viewer); CHKERRQ(ierr);
 	}
-
-	ierr = PetscViewerHDF5PopGroup(viewer); CHKERRQ(ierr);
 	ierr = PetscViewerDestroy(&viewer); CHKERRQ(ierr);
 
 	/** Write the H-field file. */
-	ierr = PetscViewerCreate(PETSC_COMM_WORLD, &viewer); CHKERRQ(ierr);
-	ierr = PetscViewerSetType(viewer, PETSCVIEWERBINARY); CHKERRQ(ierr);
-	ierr = PetscViewerFileSetMode(viewer, FILE_MODE_WRITE); CHKERRQ(ierr);
-	ierr = PetscViewerBinarySkipInfo(viewer); CHKERRQ(ierr);
-	ierr = PetscViewerFileSetName(viewer, h_file); CHKERRQ(ierr);
-	/*
-	   ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD, h_file, FILE_MODE_WRITE, &viewer); CHKERRQ(ierr);
-	 */
+	ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD, h_file, FILE_MODE_WRITE, &viewer); CHKERRQ(ierr);
+	ierr = PetscViewerHDF5PushGroup(viewer, "/");
 	if (x_type==Etype) {
+		ierr = PetscObjectSetName((PetscObject) y, "H"); CHKERRQ(ierr);
 		ierr = VecView(y, viewer); CHKERRQ(ierr);
 	} else {
 		assert(x_type==Htype);
+		ierr = PetscObjectSetName((PetscObject) x, "H"); CHKERRQ(ierr);
 		ierr = VecView(x, viewer); CHKERRQ(ierr);
 	}
-
 	ierr = PetscViewerDestroy(&viewer); CHKERRQ(ierr);
+
 	ierr = VecDestroy(&y); CHKERRQ(ierr);
-
-	ierr = VecDuplicate(x, &y); CHKERRQ(ierr);
-	ierr = PetscObjectSetName((PetscObject) y, "E"); CHKERRQ(ierr);
-
-	ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD, e_file, FILE_MODE_READ, &viewer); CHKERRQ(ierr);
-	ierr = PetscViewerHDF5PushGroup(viewer, "/"); CHKERRQ(ierr);
-	ierr = VecLoad(y, viewer); CHKERRQ(ierr);
 
 	PetscFunctionReturn(0);
 }
