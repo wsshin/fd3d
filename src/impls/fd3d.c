@@ -1,5 +1,3 @@
-#include "Python.h"  // this line should be included at the very first 
-
 #include "gridinfo.h"
 #include "type.h"
 #include "logging.h"
