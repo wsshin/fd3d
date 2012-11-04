@@ -9,10 +9,6 @@ http://www.mcs.anl.gov/petsc/
 http://www.python.org/
 Most standard linux distribution these days include Python programming environment as a default.
 
-- Gnuplot, Gnuplot.py (optional)
-http://www.gnuplot.info/
-http://gnuplot-py.sourceforge.net/
-
 - MATLAB (optional)
 MATLAB is not an essential part for running FD3D, but FD3D is equipped with many useful MATLAB scripts for analyzing and visualizing the output of FD3D.  If you do not have MATLAB, you can examine the simulation results with other programs that can read binary data.
 

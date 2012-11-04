@@ -13,9 +13,9 @@ FFLAGS =
 FPPFLAGS =
 
 ifeq (${DEBUG}, 0)
-	CPPFLAGS = ${PYTHON_INCLUDE_DIR} -I${INC}
+	CPPFLAGS = -I${INC}
 else
-	CPPFLAGS = -g ${PYTHON_INCLUDE_DIR} -I${INC}
+	CPPFLAGS = -g -I${INC}
 endif
 
 ifeq (${USE_SLEPC}, 0)
@@ -35,9 +35,9 @@ output.o: ${INC}/output.h
 # Use ${FD3D_ROOT} instead of .. to keep these files in src/makefiles/ directory.
 fd3d: fd3d.o mat.o gridinfo.o logging.o vec.o solver.o output.o chkopts
 ifeq (${USE_SLEPC}, 0)
-	${CLINKER} -o fd3d fd3d.o mat.o vec.o gridinfo.o logging.o solver.o output.o ${PYTHON_LIB} ${PYTHON_LIB_DIR} ${PETSC_LIB}
+	${CLINKER} -o fd3d fd3d.o mat.o vec.o gridinfo.o logging.o solver.o output.o ${PETSC_LIB}
 else
-	${CLINKER} -o fd3d fd3d.o mat.o vec.o gridinfo.o logging.o solver.o output.o ${PYTHON_LIB} ${PYTHON_LIB_DIR} ${SLEPC_LIB}
+	${CLINKER} -o fd3d fd3d.o mat.o vec.o gridinfo.o logging.o solver.o output.o ${SLEPC_LIB}
 endif
 ifeq (${DEBUG}, 0)
 	${RM} -rf *.dSYM
@@ -46,15 +46,8 @@ else
 endif
 	${MV} fd3d ${FD3D_ROOT}/bin
 	${RM} fd3d.o
-	${CP} ${INPUT}/*.py ${FD3D_ROOT}/bin
 	#${CP} *.c ${FD3D_ROOT}/bin
-	${CC} -o ${UTIL}/dtof ${UTIL}/dtof.c
-	${MV} ${UTIL}/dtof ${FD3D_ROOT}/bin
-	${CP} ${UTIL}/testinput ${FD3D_ROOT}/bin
 	${CP} ${UTIL}/scanin ${FD3D_ROOT}/bin
 	${CP} ${UTIL}/scanjob ${FD3D_ROOT}/bin
-	${CP} ${UTIL}/dtofall ${FD3D_ROOT}/bin
-	chmod +x ${FD3D_ROOT}/bin/testinput
 	chmod +x ${FD3D_ROOT}/bin/scanin
 	chmod +x ${FD3D_ROOT}/bin/scanjob
-	chmod +x ${FD3D_ROOT}/bin/dtofall

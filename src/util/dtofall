@@ -1,8 +1,0 @@
-#!/usr/bin/env python
-import os
-import re
-
-for file in os.listdir('.'):
-	m = re.match("(.+)\.E$", file)
-	if m and  not re.match("(.+)\.sp\.E$", file):
-		os.system('./dtof ' + m.group(1))
