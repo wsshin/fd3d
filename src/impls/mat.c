@@ -61,9 +61,9 @@ PetscErrorCode setDpOnDivF_at(Mat DivF, FieldType ftype, Axis Pp, PetscInt i, Pe
 	/** Below, I'm going to set up the indices of the next grid point, which is 
 	  either in +p direction or -p direction.  
 	  If ftype==Etype, then we are calculating div(E), and we compute the difference 
-	  between the current grid point and the next in -p direction.  
+	  between the current grid point and the next in +p direction.  
 	  If ftype==Htype, then we are calculating div(H), and we compute the difference 
-	  between the current grid point and the next in +p direction. */
+	  between the current grid point and the next in -p direction. */
 	PetscInt coord_next[] = {i, j, k};  // will be updated according to whether the next grid point is in the +p dir or -p dir
 	PetscInt p = coord_next[Pp];  // current p-coordinate, not the next
 	PetscInt q = coord_next[Qq];  // current q-coordinate, not the next
@@ -71,8 +71,8 @@ PetscErrorCode setDpOnDivF_at(Mat DivF, FieldType ftype, Axis Pp, PetscInt i, Pe
 
 	/** Below, I'm going to set the two matrix elements +1/dp and -1/dp at the locations 
 	  corresponding to the current Fp and the next.  If the next Fp is at the boundary (i.e. i==0 
-	  for ftype==Etype), ignore -1/dp because no Fp is available there. */
-	if (ftype==Etype) {
+	  for ftype==Htype), ignore -1/dp because no Fp is available there. */
+	if (ftype==Htype) {
 		PetscScalar dp = gi.d_prim[Pp][p];
 		--coord_next[Pp];
 
@@ -86,13 +86,13 @@ PetscErrorCode setDpOnDivF_at(Mat DivF, FieldType ftype, Axis Pp, PetscInt i, Pe
 
 		/** Handle boundary conditions. */
 		if (useBC) {
-			if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
-				/** The tangential component of the H field on PMC is zero, and this effectively 
-				  forces the normal component of the E field zero.  Therefore, the normal component 
-				  of the E field inside PMC should be antisymmetric to that outside PMC. */
+			if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
+				/** The tangential component of the E field on PEC is zero, and this effectively 
+				  forces the normal component of the H field zero.  Therefore, the normal component 
+				  of the H field inside PEC should be antisymmetric to that outside PEC. */
 				/** When we deal with a field component a half grid behind the boundary, we need to
 				  deal with it as if there is a symmetric or antisymmetric field behind the 
-				  boundary.  With a real PEC or PMC, all field components inside PEC or PMC are 
+				  boundary.  With a real PMC or PEC, all field components inside PMC or PEC are 
 				  zeros, and the surface current or charges support the field patterns in the 
 				  problem domain.  But we don't want to have extra surface currents other than the 
 				  driving source current.  Therefore we use fictitous symmetric or antisymmetric 
@@ -103,24 +103,24 @@ PetscErrorCode setDpOnDivF_at(Mat DivF, FieldType ftype, Axis Pp, PetscInt i, Pe
 				num_dFp = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
 				dFp[0] = 2.0/dp;
 			}
-			if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
+			if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
 				//dFp[0] = 0.0; dFp[1] = 0.0;
 			}
-			if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
+			if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
 				//dFp[0] = 0.0; dFp[1] = 0.0;
 			}
-			if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
-				/** PEC is usually used to simulate a whole structure with only a half structure when
-				  the field distribution is symmetric such that the normal component of the E field 
-				  is continuous while the tangential component of the E field is zero.  In the 
-				  current case of PEC at p==0, it simulates the continuous Ep and Eq==Er==0.  
-				  But it doesn't mean that (d/dp)Ep = 0.  To simulate the whole structure with only a
-				  half structure, the image charge is formed on the PEC, and Ep inside PEC is 
+			if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
+				/** PMC is usually used to simulate a whole structure with only a half structure when
+				  the field distribution is symmetric such that the normal component of the H field 
+				  is continuous while the tangential component of the H field is zero.  In the 
+				  current case of PMC at p==0, it simulates the continuous Hp and Hq==Hr==0.  
+				  But it doesn't mean that (d/dp)Hp = 0.  To simulate the whole structure with only a
+				  half structure, the image charge is formed on the PMC, and Hp inside PMC is 
 				  essentially zero. 
 				  But when we deal with a field component a half grid behind the boundary, we need to
 				  deal with it as if there is a symmetric or antisymmetric field behind the 
 				  boundary.  
-				  With a real PEC or PMC, all field components inside PEC or PMC are zeros, and the 
+				  With a real PMC or PEC, all field components inside PMC or PEC are zeros, and the 
 				  surface current or charges support the field patterns in the problem domain.  But 
 				  we don't want to have extra surface currents other than the driving source 
 				  current.  Therefore we use fictitous symmetric or antisymmetric field components 
@@ -131,8 +131,8 @@ PetscErrorCode setDpOnDivF_at(Mat DivF, FieldType ftype, Axis Pp, PetscInt i, Pe
 				num_dFp = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
 				dFp[0] = 0.0;
 			}
-			if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
-				/** This effectively forces E components tangential to PEC zero. */
+			if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
+				/** This effectively forces H components tangential to PMC zero. */
 				/** The below is mathematically the same as doing num_dFq = 0, because 
 				  num_dFq = 0 keeps matrix elements untouched, which are initially zeros.
 				  The difference is in the nonzero pattern of the matrix.  PETSc thinks 
@@ -146,8 +146,8 @@ PetscErrorCode setDpOnDivF_at(Mat DivF, FieldType ftype, Axis Pp, PetscInt i, Pe
 				  w^2*mu*S/L from CE*INV_EPS*C_LH in createA() function. */
 				dFp[0] = 0.0; dFp[1] = 0.0;
 			}
-			if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
-				/** This effectively forces E components tangential to PEC zero. */
+			if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
+				/** This effectively forces H components tangential to PMC zero. */
 				dFp[0] = 0.0; dFp[1] = 0.0;
 			}
 		}
@@ -170,7 +170,7 @@ PetscErrorCode setDpOnDivF_at(Mat DivF, FieldType ftype, Axis Pp, PetscInt i, Pe
 		  line integrals on p==0 and p==1 cancel one another. */
 		ierr = MatSetValuesStencil(DivF, 1, &indGx, num_dFp, indFp, dFp, ADD_VALUES); CHKERRQ(ierr);  // Gx =  (d/dp)Fp + (d/dq)Fq + (d/dr)Fr
 	} else {
-		assert(ftype==Htype);
+		assert(ftype==Etype);
 		/** Not implemented.  If it needs to be implemented, use setDpOnCF_at() as a template. */
 	}
 
@@ -290,10 +290,10 @@ PetscErrorCode setDpOnFGrad_at(Mat FGrad, FieldType ftype, Axis Pp, PetscInt i, 
 
 	/** Below, I'm going to set up the indices of the next grid point, which is 
 	  either in +p direction or -p direction.  
-	  If ftype==Etype, then we are calculating E = grad(phi) where phi is defined at the lower left
+	  If ftype==Htype, then we are calculating E = grad(phi) where phi is defined at the lower left
 	  front node of Yee's cell.  So we compute the difference between phi at the current grid point 
 	  and the next in +p direction.  
-	  If ftype==Htype, then we are calculating H = grad(phi) where phi is defined at the center of 
+	  If ftype==Etype, then we are calculating H = grad(phi) where phi is defined at the center of 
 	  Yee's cell.  So we compute the difference between the current grid point and the next in -p 
 	  direction. */
 	PetscInt coord_next[] = {i, j, k};  // will be updated according to whether the next grid point is in the +p dir or -p dir
@@ -303,8 +303,8 @@ PetscErrorCode setDpOnFGrad_at(Mat FGrad, FieldType ftype, Axis Pp, PetscInt i, 
 
 	/** Below, I'm going to set the two matrix elements -1/dp and +1/dp at the locations 
 	  corresponding to the current Fp and the next.  If the next Fp is at the boundary (i.e. i+1==Nx 
-	  for ftype==Etype), ignore +1/dp because no Fp is available there. */
-	if (ftype==Etype) {
+	  for ftype==Htype), ignore +1/dp because no Fp is available there. */
+	if (ftype==Htype) {
 		PetscScalar dp = gi.d_dual[Pp][p];
 		++coord_next[Pp];
 
@@ -318,17 +318,17 @@ PetscErrorCode setDpOnFGrad_at(Mat FGrad, FieldType ftype, Axis Pp, PetscInt i, 
 
 		/** Handle boundary conditions. */
 		if (useBC) {
-			if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
-			}
-			if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
-			}
-			if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
-			}
 			if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
 			}
 			if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
 			}
 			if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
+			}
+			if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
+			}
+			if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
+			}
+			if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
 			}
 			/*
 			   if (indGx[0].i==0 || indGx[0].j==0 || indGx[0].k==0) {
@@ -338,8 +338,8 @@ PetscErrorCode setDpOnFGrad_at(Mat FGrad, FieldType ftype, Axis Pp, PetscInt i, 
 			   dGx[1] = 0.0;
 			   }
 			 */
-			if (p==Np-1 && gi.bc[Pp][Pos]==PEC) {  // p==Np plane
-				/** Assume that phi on PEC is zero, which is the case when phi = div(esp E). */
+			if (p==Np-1 && gi.bc[Pp][Pos]==PMC) {  // p==Np plane
+				/** Assume that phi on PMC is zero, which is the case when phi = div(esp E). */
 				num_dGx = 1; num_dGx = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
 			}
 		}
@@ -362,7 +362,7 @@ PetscErrorCode setDpOnFGrad_at(Mat FGrad, FieldType ftype, Axis Pp, PetscInt i, 
 		  line integrals on p==0 and p==1 cancel one another. */
 		ierr = MatSetValuesStencil(FGrad, 1, &indFp, num_dGx, indGx, dGx, ADD_VALUES); CHKERRQ(ierr);  // Gx =  (d/dp)Fp + (d/dq)Fq + (d/dr)Fr
 	} else {
-		assert(ftype==Htype);
+		assert(ftype==Etype);
 		/** Not implemented.  If it needs to be implemented, use setDpOnCF_at() as a template. */
 	}
 
@@ -494,9 +494,9 @@ PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscI
 
 	/** Below, I'm going to set up the indices of the next grid point, which is 
 	  either in +p direction or -p direction.  
-	  If ftype==Etype, then we are calculating curl[E], and we compute the difference 
+	  If ftype==Htype, then we are calculating curl[E], and we compute the difference 
 	  between the current grid point and the next in +p direction.  
-	  If ftype==Htype, then we are calculating curl[H], and we compute the difference 
+	  If ftype==Etype, then we are calculating curl[H], and we compute the difference 
 	  between the current grid point and the next in -p direction. */
 	PetscInt coord_next[] = {i, j, k};  // will be updated according to whether the next grid point is in the +p dir or -p dir
 	PetscInt p = coord_next[Pp];  // current p-coordinate, not the next
@@ -505,9 +505,9 @@ PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscI
 
 	/** Below, I'm going to set the two matrix elements -1/dp and +1/dp at the 
 	  locations corresponding to the current Fr (or Fq) and the next.  If the next Fr 
-	  (or Fq) is at the boundary (i.e. i+1==Nx for ftype==Etype, Pp==Xx), ignore +1/dp
+	  (or Fq) is at the boundary (i.e. i+1==Nx for ftype==Htype, Pp==Xx), ignore +1/dp
 	  because no Fr (or Fq) is available there. */
-	if (ftype==Etype) {
+	if (ftype==Htype) {
 		//PetscScalar Sr = gi.d_prim[Pp][p] * gi.d_prim[Qq][q];
 		//PetscScalar Sq = gi.d_prim[Rr][r] * gi.d_prim[Pp][p];
 		PetscScalar dp = gi.d_dual[Pp][p];
@@ -537,7 +537,7 @@ PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscI
 
 		/** Handle boundary conditions. */
 		if (useBC) {  // assume F is E field; othewise, assume F is just a vector at an E field point, which is used to create the curl operator without considering the BC.
-			if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
+			if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
 				/*
 				   dFq[0] = -2.0/Sr; dFr[0] = 2.0/Sq; 
 				   num_dFq = 1; num_dFr = 1;
@@ -565,19 +565,19 @@ PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscI
 				   indFq[1].k = coord_next[Zz];
 				 */
 			}
-			if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
+			if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
 				//dFr[0] = 0.0; dFr[1] = 0.0;
 			}
-			if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
+			if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
 				//dFq[0] = 0.0; dFq[1] = 0.0;
 			}
-			if (p==0 && (gi.bc[Pp][Neg]==PEC || gi.bc[Pp][Neg]==hPEC)) {  // p==0 plane
-				/** This effectively forces E components tangential to PEC zero. */
+			if (p==0 && (gi.bc[Pp][Neg]==PMC || gi.bc[Pp][Neg]==hPMC)) {  // p==0 plane
+				/** This effectively forces H components tangential to PMC zero. */
 				dFq[0] = 0.0; 
 				dFr[0] = 0.0;
 			}
-			if (q==0 && (gi.bc[Qq][Neg]==PEC || gi.bc[Qq][Neg]==hPEC)) {  // q==0 plane
-				/** This effectively forces E components tangential to PEC zero. */
+			if (q==0 && (gi.bc[Qq][Neg]==PMC || gi.bc[Qq][Neg]==hPMC)) {  // q==0 plane
+				/** This effectively forces H components tangential to PMC zero. */
 				/** The below is mathematically the same as doing num_dFq = 0, because 
 				  num_dFq = 0 keeps matrix elements untouched, which are initially zeros.
 				  The difference is in the nonzero pattern of the matrix.  PETSc thinks 
@@ -591,8 +591,8 @@ PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscI
 				  w^2*mu*S/L from CE*INV_EPS*C_LH in createA() function. */
 				dFr[0] = 0.0; dFr[1] = 0.0;
 			}
-			if (r==0 && (gi.bc[Rr][Neg]==PEC || gi.bc[Rr][Neg]==hPEC)) {  // r==0 plane
-				/** This effectively forces E components tangential to PEC zero. */
+			if (r==0 && (gi.bc[Rr][Neg]==PMC || gi.bc[Rr][Neg]==hPMC)) {  // r==0 plane
+				/** This effectively forces H components tangential to PMC zero. */
 				dFq[0] = 0.0; dFq[1] = 0.0;
 			}
 			if (p==Np-1 && gi.bc[Pp][Pos]==Bloch) {  // p==Np plane
@@ -611,7 +611,7 @@ PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscI
 		  distributed array (DA); if we do not want the periodic boundary condition, we have to 
 		  prevent the index from going beyond the index limit. */
 		if (p==Np-1 && gi.bc[Pp][Pos]!=Bloch) {  // p==Np plane
-			/** This effectively forces E components tangential to PEC zero by 
+			/** This effectively forces H components tangential to PMC zero by 
 			  preventing the periodic boundary condition. */
 			num_dFq = 1; num_dFr = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
 		}
@@ -626,7 +626,7 @@ PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscI
 		ierr = MatSetValuesStencil(CF, 1, &indGr, num_dFq, indFq, dFq, ADD_VALUES); CHKERRQ(ierr);  // Gr <-- [curl(F)]r = (d/dp)Fq - (d/dq)Fp
 		ierr = MatSetValuesStencil(CF, 1, &indGq, num_dFr, indFr, dFr, ADD_VALUES); CHKERRQ(ierr);  // Gq <-- [curl(F)]q = (d/dr)Fp - (d/dp)Fr
 	} else {
-		assert(ftype==Htype);
+		assert(ftype==Etype);
 		//PetscScalar dq = gi.d_dual[Qq][q];
 		//PetscScalar dr = gi.d_dual[Rr][r];
 		PetscScalar dp = gi.d_prim[Pp][p];
@@ -641,7 +641,7 @@ PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscI
 		indFq[1].k = coord_next[Zz];
 
 		/** Two matrix elements in a single row to be set at once.  Note the sign 
-		  differences from ftype==Etype case, we have done --coord_next[Pp] instead of
+		  differences from ftype==Htype case, we have done --coord_next[Pp] instead of
 		  ++coord_next[Pp]. */
 		//PetscScalar dFq[] = {dq, -dq};  // used for +(d/dp)Fq = +(Lq Fq)/Sr -> Gr
 		//PetscScalar dFr[] = {-dr, dr};  // used for -(d/dp)Fr = -(Lr Fr)/Sq -> Gq
@@ -658,42 +658,41 @@ PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscI
 
 		/** Handle boundary conditions. */
 		if (useBC) {  // assume F is H field; othewise, assume F is just a vector at an H field point, which is used to create the curl operator without considering the BC.
-			if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
-				/** PMC is usually used to simulate a whole structure with only a half structure 
-				  when the field distribution is symmetric such that the normal component of the H 
-				  field is continuous and the tangential component of the H field is zero.  In the 
-				  current case of PMC at p==0, it simulates the continuous Hp and Hq==Hr==0, which 
-				  leads to the antisymmetric distribution of Hq and Hr around p==0 plane.  Then it 
-				  seems like (d/dp)Hq = (2.0/dp)*Hq and (d/dp)Hr = (2.0/dp)*Hr at p==0.
-				  But in reality (d/dp)Hq and (d/dp)Hr at p==0 are not like that.  To simulate the 
-				  whole structure with only a half structure, the image current is formed on PMC, 
-				  and Hq and Hr inside PMC is essentially zero. Therefore, the correct formulation of
-				  Maxwell's equations is to leave (d/dp)Hq = (1.0/dp)*Hq and (d/dp)Hr = (1.0/dp)*Hr,
-				  and put the additional surface current on PMC.  But this leads to a technical 
-				  difficulty.  First, in the continuous (not distretized) case Hq and Hr on PMC are 
-				  zeros, and the tangential component of curl(H) is zero on PMC.  This means that 
-				  the tangential component of the E field is completely generated by the surface 
-				  current without any curl(H).  In other words, PMC can support any value of the 
-				  tangential component of the E field; an appropriate surface current will be 
+			if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
+				/** PEC is usually used to simulate a whole structure with only a half structure 
+				  when the field distribution is symmetric such that the normal component of the E 
+				  field is continuous and the tangential component of the E field is zero.  In the 
+				  current case of PEC at p==0, it simulates the continuous Ep and Eq==Er==0, which 
+				  leads to the antisymmetric distribution of Eq and Er around p==0 plane.  Then it 
+				  seems like (d/dp)Eq = (2.0/dp)*Eq and (d/dp)Er = (2.0/dp)*Er at p==0.
+				  But in reality (d/dp)Eq and (d/dp)Er at p==0 are not like that.  To simulate the 
+				  whole structure with only a half structure, the image current is formed on PEC, 
+				  and Eq and Er inside PEC is essentially zero. Therefore, the correct formulation of
+				  Maxwell's equations is to leave (d/dp)Eq = (1.0/dp)*Eq and (d/dp)Er = (1.0/dp)*Er,
+				  and put the additional magnetic surface current on PEC.  But this leads to a 
+				  technical difficulty.  First, in the continuous (not distretized) case Eq and Er on
+				  PEC are zeros, and the tangential component of curl(E) is zero on PEC.  This means 
+				  that the tangential component of the H field is completely generated by the surface
+				  magnetic current without any curl(E).  In other words, PEC can support any value of
+				  the tangential component of the H field; an appropriate surface current will be 
 				  readily generated.
-				  So instead of this "real" PMC, it is better to model PMC as a layer a half-grid 
+				  So instead of this "real" PEC, it is better to model PEC as a layer a half-grid 
 				  under the interface that actively generates an antisymmetric tangential component 
 				  of the H field.
-				  This is 
 				 */
 				num_dFq = 1; num_dFr = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
 				//dFq[0] = 2.0*dq; dFr[0] = -2.0*dr;
 				//dFq[0] = 1.0/dp; dFr[0] = -1.0/dp;
 				dFq[0] = 2.0/dp; dFr[0] = -2.0/dp;
 			}
-			if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
+			if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
 			}
-			if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
+			if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
 			}
-			if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
-				/** This is the Neumann condition for PEC.  Basically, this makes the 
-				  resulting E field components Eq and Er zero on p == 0 PEC.  If the source 
-				  components Jq and Jr are not zero on p == 0 PEC, I think we need to force 
+			if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
+				/** This is the Neumann condition for PMC.  Basically, this makes the 
+				  resulting H field components Hq and Hr zero on p == 0 PMC.  If the source 
+				  components Mq and Mr are not zero on p == 0 PMC, I think we need to force 
 				  them zero when constructing the source vector. */
 				/** Note that the following is the same as num_dFq = 2, num_dFr = 2, dFq =
 				  {0.0, 0.0}, dFr = {0.0, 0.0}.  But then the nonzero element pattern becomes
@@ -703,24 +702,24 @@ PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscI
 				dFq[0] = 0.0;
 				dFr[0] = 0.0;
 			}
-			if (p==0 && gi.bc[Pp][Neg]==hPEC) {  // p==0 plane
-				/** Hard PEC.  Assume that the tangential component of H inside the PEC is zero, 
+			if (p==0 && gi.bc[Pp][Neg]==hPMC) {  // p==0 plane
+				/** Hard PMC.  Assume that the tangential component of H inside the PMC is zero, 
 				  rather than continuous.  This causes discontinuity of the tangential component of 
-				  H, which results in the surface current. */
+				  E, which results in the surface magnetic current. */
 				/** Note that the following is the same as num_dFq = 2, num_dFr = 2, dFq =
 				  {0.0, -1.0/dp}, dFr = {0.0, 1.0/dp}.  But then the nonzero element pattern becomes
 				  different.  So, when we perform MatAXPY(dA, -1.0, A, strct), we cannot use 
 				  strct == SAME_NONZERO_PATTERN anymore. */
 				num_dFq = 1; num_dFr = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
 			}
-			if (q==0 && (gi.bc[Qq][Neg]==PEC || gi.bc[Qq][Neg]==hPEC)) {  // q==0 plane
-				/** This is the Neumann condition for PEC.  Because the E field components Er and
-				  Ep are zeros on q == 0 PEC, and Hq that is normal to the PEC should be zero. */ 
+			if (q==0 && (gi.bc[Qq][Neg]==PMC || gi.bc[Qq][Neg]==hPMC)) {  // q==0 plane
+				/** This is the Neumann condition for PMC.  Because the H field components Hr and
+				  Hp are zeros on q == 0 PMC, and Eq that is normal to the PMC should be zero. */ 
 				dFq[0] = 0.0; dFq[1] = 0.0;
 			}
-			if (r==0 && (gi.bc[Rr][Neg]==PEC || gi.bc[Rr][Neg]==hPEC)) {  // r==0 plane
-				/** This is the Neumann condition for PEC.  Because the E field components Ep and
-				  Eq are zeros on r == 0 PEC, Hr that is normal to the PEC should be zero. */ 
+			if (r==0 && (gi.bc[Rr][Neg]==PMC || gi.bc[Rr][Neg]==hPMC)) {  // r==0 plane
+				/** This is the Neumann condition for PMC.  Because the H field components Hp and
+				  Hq are zeros on r == 0 PMC, Er that is normal to the PMC should be zero. */ 
 				dFr[0] = 0.0; dFr[1] = 0.0;
 			}
 			if (p==0 && gi.bc[Pp][Neg]==Bloch) {  // p==0 plane
@@ -937,7 +936,7 @@ Therefore, if Gq==Ey, then Fp==Ex and dr==dx, and so on. */
 	Axis Qq = (Axis)((Pp+1) % Naxis);  // if Pp==Xx, this is Yy
 	Axis Rr = (Axis)((Pp+2) % Naxis);  // if Pp==Xx, this is Zz
 
-	if (ftype==Etype) {
+	if (ftype==Htype) {
 		/** Set (x,y,z,axis) indices for the output field component Gp. */
 		/** indGp.c is the degree-of-freedom (dof) index; in FD3D used to indicate the direction of 
 		  the field component. */
@@ -1006,7 +1005,7 @@ Therefore, if Gq==Ey, then Fp==Ex and dr==dx, and so on. */
 		++coordFw[Pp]; --coordFw[Rr];
 		indFw[14].i = coordFw[Xx]; indFw[14].j = coordFw[Yy]; indFw[14].k = coordFw[Zz]; indFw[14].c = Rr;
 	} else {
-		assert(ftype==Htype);
+		assert(ftype==Etype);
 		/** Not implemented.  If it needs to be implemented, use setDpOnCF_at() as a template. */
 	}
 
@@ -1397,18 +1396,18 @@ PetscErrorCode createDG(Mat *DG, GridInfo gi)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "hasPMC"
+#define __FUNCT__ "hasPEC"
 /**
- * hasPMC
+ * hasPEC
  * ------
- * Set flgPMC PETSC_TRUE if some boundary is PMC; PETSC_FALSE otherwise.
+ * Set flgPEC PETSC_TRUE if some boundary is PEC; PETSC_FALSE otherwise.
  */
-PetscErrorCode hasPMC(PetscBool *flgPMC, GridInfo gi)
+PetscErrorCode hasPEC(PetscBool *flgPEC, GridInfo gi)
 {
 	PetscFunctionBegin;
 
-	if (gi.bc[Xx][Neg]==PMC || gi.bc[Yy][Neg]==PMC || gi.bc[Zz][Neg]==PMC) *flgPMC = PETSC_TRUE;
-	else *flgPMC = PETSC_FALSE;
+	if (gi.bc[Xx][Neg]==PEC || gi.bc[Yy][Neg]==PEC || gi.bc[Zz][Neg]==PEC) *flgPEC = PETSC_TRUE;
+	else *flgPEC = PETSC_FALSE;
 
 	PetscFunctionReturn(0);
 }
@@ -1458,7 +1457,7 @@ PetscErrorCode numSymmetrize(Mat A)
 	relerr /= normA;
 	ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\tsymmetry test: norm(A^T - A)/norm(A) = %e\n",  relerr); CHKERRQ(ierr);
 
-	PetscReal sym_tol = 5e-16;
+	PetscReal sym_tol = 1e-15;
 	if (relerr > sym_tol) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_ARG_WRONGSTATE, "ERROR: A is not symmetric enough");
 
 	ierr = MatScale(A, 0.5); CHKERRQ(ierr);
@@ -1705,7 +1704,7 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 
 	if (gi.is_symmetric) {  // currently, is_symmetric only works for x_type == Etype
 		/** original eq: A0 x = b.  The matrix 
-		  diag(1/sqrt(Epmc)) diag(sqrt(LS)) A0 diag(1/sqrt(LS)) diag(sqrt(Epmc))
+		  diag(1/sqrt(Epec)) diag(sqrt(LS)) A0 diag(1/sqrt(LS)) diag(sqrt(Epec))
 		  is symmetric. */
 
 		/** Calculate the diagonal matrix to be multiplied to the left and right of the 
@@ -1722,13 +1721,13 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 		ierr = VecPointwiseMult(*right_precond, *right_precond, sqrtLS); CHKERRQ(ierr);
 		ierr = VecDestroy(&sqrtLS); CHKERRQ(ierr);
 
-		Vec sqrtScaleEpmc;
-		//ierr = create_scaleEpmc(&sqrtScaleEpmc, gi); CHKERRQ(ierr);
-		ierr = createFieldArray(&sqrtScaleEpmc, set_scale_Epmc_at, gi); CHKERRQ(ierr);
-		ierr = sqrtVec(sqrtScaleEpmc, gi); CHKERRQ(ierr);
+		Vec sqrtScaleEpec;
+		//ierr = create_scaleEpec(&sqrtScaleEpec, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&sqrtScaleEpec, set_scale_Epec_at, gi); CHKERRQ(ierr);
+		ierr = sqrtVec(sqrtScaleEpec, gi); CHKERRQ(ierr);
 
-		ierr = VecPointwiseDivide(*right_precond, *right_precond, sqrtScaleEpmc); CHKERRQ(ierr);
-		ierr = VecDestroy(&sqrtScaleEpmc); CHKERRQ(ierr);
+		ierr = VecPointwiseDivide(*right_precond, *right_precond, sqrtScaleEpec); CHKERRQ(ierr);
+		ierr = VecDestroy(&sqrtScaleEpec); CHKERRQ(ierr);
 		ierr = VecPointwiseDivide(left_precond, left_precond, *right_precond); CHKERRQ(ierr);
 	}
 

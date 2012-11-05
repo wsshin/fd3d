@@ -17,11 +17,11 @@ PetscErrorCode createVecHDF5(Vec *vec, const char *dataset_name, GridInfo gi);
 PetscErrorCode createFieldArray(Vec *field, FunctionSetComponentAt setComponentAt, GridInfo gi);
 
 /**
- * set_scale_Epmc_at
+ * set_scale_Epec_at
  * -------------
  * Set an element of the vector that scales E fields on PMC by a factor of 2.
  */
-PetscErrorCode set_scale_Epmc_at(PetscScalar *scale_Epmc_value, Axis axis, const PetscInt ind[], GridInfo *gi);
+PetscErrorCode set_scale_Epec_at(PetscScalar *scale_Epec_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
  * set_sparam_mu_at

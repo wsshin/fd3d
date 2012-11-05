@@ -1,11 +1,5 @@
 #include "petsc.h"
 #include "hdf5.h"
-
-#if USE_SLEPC!=0
-#include "slepceps.h"
-#include "slepcsvd.h"
-#endif
-
 #include "type.h"
 #include "gridinfo.h"
 #include "logging.h"
@@ -66,12 +60,7 @@ PetscErrorCode cleanup(Mat A, Vec b, Vec right_precond, Mat HE, GridInfo gi)
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "fd3d finished.\n"); CHKERRQ(ierr);
 	}
 
-#if USE_SLEPC==0
 	ierr = PetscFinalize(); CHKERRQ(ierr);  // finalize PETSc.
-#else
-	ierr = SlepcFinalize(); CHKERRQ(ierr);  // finalize SLEPc.
-#endif
-
 	PetscFunctionReturn(0);
 }
 
@@ -109,17 +98,9 @@ PetscErrorCode main(int argc, char **argv)
 
 	if (option_file) {
 		fclose(option_file);
-#if USE_SLEPC==0
 		ierr = PetscInitialize(&argc, &argv, option_file_name, help); CHKERRQ(ierr);
-#else
-		ierr = SlepcInitialize(&argc, &argv, option_file_name, help); CHKERRQ(ierr);
-#endif
 	} else {
-#if USE_SLEPC==0
 		ierr = PetscInitialize(&argc, &argv, PETSC_NULL, help); CHKERRQ(ierr);
-#else
-		ierr = SlepcInitialize(&argc, &argv, PETSC_NULL, help); CHKERRQ(ierr);
-#endif
 	}
 
 	GridInfo gi;
@@ -183,151 +164,6 @@ PetscErrorCode main(int argc, char **argv)
 
 		PetscFunctionReturn(0);  // finish the program
 	}
-
-#if USE_SLEPC!=0
-	/** Solve the eigen problem A x = lambda x. */
-	if (gi.solve_eigen) {
-		EPS eps;
-		const EPSType type;
-		PetscReal tol;
-		PetscInt n = 1, nev, its, nconv, maxit;
-		PetscScalar ev, ev_img;  // eigenvalue
-		Vec x, x_img;  // eigenvector
-
-		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nEigen solver starts.\n"); CHKERRQ(ierr);
-
-		/** Create the eigensolver context. */
-		ierr = EPSCreate(PETSC_COMM_WORLD, &eps); CHKERRQ(ierr);
-
-		/** Set operators for the standard eigenvalue problem. */
-		ierr = EPSSetOperators(eps, A, PETSC_NULL); CHKERRQ(ierr);
-		ierr = EPSSetProblemType(eps, EPS_NHEP); CHKERRQ(ierr);
-
-		/** Set solver parameters at runtime. */
-		ierr = EPSSetFromOptions(eps); CHKERRQ(ierr);
-
-		/** Solve the eigen problem. */
-		ierr = EPSSolve(eps); CHKERRQ(ierr);
-
-		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Eigen solver finished.\n"); CHKERRQ(ierr);
-
-		/** Gather information and display it. */
-		ierr = EPSGetIterationNumber(eps, &its); CHKERRQ(ierr);
-		ierr = PetscPrintf(PETSC_COMM_WORLD, "Number of iterations of the method: %d\n", its); CHKERRQ(ierr);
-		ierr = EPSGetType(eps, &type); CHKERRQ(ierr);
-		ierr = PetscPrintf(PETSC_COMM_WORLD, "Solution method: %s\n", type); CHKERRQ(ierr);
-		ierr = EPSGetDimensions(eps, &nev, PETSC_NULL, PETSC_NULL); CHKERRQ(ierr);
-		ierr = PetscPrintf(PETSC_COMM_WORLD, "Number of requested eigenvalues: %d\n", nev); CHKERRQ(ierr);
-		ierr = EPSGetTolerances(eps, &tol, &maxit); CHKERRQ(ierr);
-		ierr = PetscPrintf(PETSC_COMM_WORLD, "Stopping condition: tol=%.4g, maxit=%d\n", tol, maxit); CHKERRQ(ierr);
-
-
-		/** Display the solution. */
-		ierr = EPSGetConverged(eps, &nconv); CHKERRQ(ierr);
-		ierr = PetscPrintf(PETSC_COMM_WORLD, "Number of converged eigenpairs: %d\n", nconv); CHKERRQ(ierr);
-		if (nconv > 0) {
-			/** Display eigenvalues and relative errors. */
-			PetscReal error;
-			PetscInt i;
-			char output_name_eigen[PETSC_MAX_PATH_LEN];
-
-			ierr = VecDuplicate(gi.vecTemp, &x); CHKERRQ(ierr);
-			ierr = VecDuplicate(gi.vecTemp, &x_img); CHKERRQ(ierr);
-
-			ierr = PetscPrintf(PETSC_COMM_WORLD,
-					"        k          ||Ax-kx||/||kx||\n" 
-					"----------------- ------------------\n" ); CHKERRQ(ierr);
-			for (i = 0; i < nconv; i++) {
-				ierr = EPSGetEigenpair(eps, i, &ev, &ev_img, x, x_img); CHKERRQ(ierr);
-				ierr = EPSComputeRelativeError(eps, i, &error); CHKERRQ(ierr);
-				ierr = PetscPrintf(PETSC_COMM_WORLD," %f%+fi %12e\n", PetscRealPart(ev), PetscImaginaryPart(ev), error); CHKERRQ(ierr);
-
-				PetscSNPrintf(output_name_eigen, PETSC_MAX_PATH_LEN, "%s_eigen%d", gi.output_name, i); CHKERRQ(ierr);
-				ierr = output(output_name_eigen, gi.x_type, x, HE); CHKERRQ(ierr);
-			}
-			ierr = PetscPrintf(PETSC_COMM_WORLD, "\n"); CHKERRQ(ierr);
-		}
-
-		/** Clean up. */
-		ierr = EPSDestroy(&eps); CHKERRQ(ierr); 
-		ierr = VecDestroy(&x); CHKERRQ(ierr); 
-		ierr = VecDestroy(&x_img); CHKERRQ(ierr); 
-		ierr = cleanup(A, b, right_precond, HE, gi); CHKERRQ(ierr);
-
-		PetscFunctionReturn(0);  // finish the program
-	}
-
-	/** Carry out partial singular value decomposition. */
-	if (gi.solve_singular) {
-		SVD svd;
-		const SVDType type;
-		PetscReal tol;
-		PetscInt n = 1, nsv, its, nconv, maxit;
-		PetscReal sv;  // singular value
-		Vec u, v;  // left, right singular vectors
-
-		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nPartial SVD starts.\n"); CHKERRQ(ierr);
-
-		/** Create the SVD context. */
-		ierr = SVDCreate(PETSC_COMM_WORLD, &svd); CHKERRQ(ierr);
-
-		/** Set the operator for SVD. */
-		ierr = SVDSetOperator(svd, A); CHKERRQ(ierr);
-
-		/** Set solver parameters at runtime. */
-		ierr = SVDSetFromOptions(svd); CHKERRQ(ierr);
-
-		/** Carry out SVD. */
-		ierr = SVDSolve(svd); CHKERRQ(ierr);
-
-		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Partial SVD finished.\n"); CHKERRQ(ierr);
-
-		/** Gather information and display it. */
-		ierr = SVDGetIterationNumber(svd, &its); CHKERRQ(ierr);
-		ierr = PetscPrintf(PETSC_COMM_WORLD, "Number of iterations of the method: %d\n", its); CHKERRQ(ierr);
-		ierr = SVDGetType(svd, &type); CHKERRQ(ierr);
-		ierr = PetscPrintf(PETSC_COMM_WORLD, "Solution method: %s\n", type); CHKERRQ(ierr);
-		ierr = SVDGetDimensions(svd, &nsv, PETSC_NULL, PETSC_NULL); CHKERRQ(ierr);
-		ierr = PetscPrintf(PETSC_COMM_WORLD, "Number of requested singular values: %d\n", nsv); CHKERRQ(ierr);
-		ierr = SVDGetTolerances(svd, &tol, &maxit); CHKERRQ(ierr);
-		ierr = PetscPrintf(PETSC_COMM_WORLD, "Stopping condition: tol=%.4g, maxit=%d\n", tol, maxit); CHKERRQ(ierr);
-
-
-		/** Display the solution. */
-		ierr = SVDGetConverged(svd, &nconv); CHKERRQ(ierr);
-		ierr = PetscPrintf(PETSC_COMM_WORLD, "Number of converged singular triplets: %d\n", nconv); CHKERRQ(ierr);
-		if (nconv > 0) {
-			/** Display eigenvalues and relative errors. */
-			PetscReal error;
-			PetscInt i;
-			char output_name_singular[PETSC_MAX_PATH_LEN];
-
-			ierr = VecDuplicate(gi.vecTemp, &u); CHKERRQ(ierr);
-			ierr = VecDuplicate(gi.vecTemp, &v); CHKERRQ(ierr);
-
-			ierr = PetscPrintf(PETSC_COMM_WORLD,
-					"       k       ||H(A)x-kx||/||kx||\n" 
-					"-------------- -------------------\n" ); CHKERRQ(ierr);
-			for (i = 0; i < nconv; i++) {
-				ierr = SVDGetSingularTriplet(svd, i, &sv, u, v); CHKERRQ(ierr);
-				ierr = SVDComputeRelativeError(svd, i, &error); CHKERRQ(ierr);
-				ierr = PetscPrintf(PETSC_COMM_WORLD," %e      %12e\n", sv, error); CHKERRQ(ierr);
-
-				PetscSNPrintf(output_name_singular, PETSC_MAX_PATH_LEN, "%s_singular%d", gi.output_name, i); CHKERRQ(ierr);
-				ierr = output_singular(output_name_singular, u, v); CHKERRQ(ierr);
-			}
-			ierr = PetscPrintf(PETSC_COMM_WORLD, "\n"); CHKERRQ(ierr);
-		}
-
-		/** Clean up. */
-		ierr = SVDDestroy(&svd); CHKERRQ(ierr); 
-		ierr = VecDestroy(&u); CHKERRQ(ierr); 
-		ierr = VecDestroy(&v); CHKERRQ(ierr); 
-		ierr = cleanup(A, b, right_precond, HE, gi); CHKERRQ(ierr);
-
-		PetscFunctionReturn(0);  // finish the program
-	}
-#endif
 
 	/** Prepare the initial guess .*/
 	/** eq to solve: 

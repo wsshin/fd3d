@@ -70,34 +70,20 @@ PetscErrorCode createFieldArray(Vec *field, FunctionSetComponentAt setComponentA
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "set_scale_Epmc_at"
+#define __FUNCT__ "set_scale_Epec_at"
 /**
- * set_scale_Epmc_at
+ * set_scale_Epec_at
  * -------------
- * Set an element of the vector that scales E fields on PMC by a factor of 2.
+ * Set an element of the vector that scales E fields on PEC by a factor of 2.
  */
-PetscErrorCode set_scale_Epmc_at(PetscScalar *scale_Epmc_value, Axis axis, const PetscInt ind[], GridInfo *gi)
+PetscErrorCode set_scale_Epec_at(PetscScalar *scale_Epec_value, Axis axis, const PetscInt ind[], GridInfo *gi)
 {
 	PetscFunctionBegin;
 
-	*scale_Epmc_value = 1.0;
-
-	Axis axis1 = (Axis)((axis+1) % Naxis);
-	Axis axis2 = (Axis)((axis+2) % Naxis);
-
-	PetscInt ind1 = ind[axis1];
-	PetscInt ind2 = ind[axis2];
-
-	if (gi->bc[axis1][Neg]==PMC && ind1==0) {
-		*scale_Epmc_value *= 2.0;
+	*scale_Epec_value = 1.0;
+	if (gi->bc[axis][Neg]==PEC && ind[axis]==0) {
+		*scale_Epec_value *= 2.0;
 	}
-
-	if (gi->bc[axis2][Neg]==PMC && ind2==0) {
-		*scale_Epmc_value *= 2.0;
-	}
-
-	/** Note that the above makes E fields on the common edges between two PMC planes
-	  scaled by a factor of 2.0*2.0 = 4.0. */
 
 	PetscFunctionReturn(0);
 }
@@ -122,8 +108,8 @@ PetscErrorCode set_sparam_mu_at(PetscScalar *sparam_mu_value, Axis axis, const P
 	PetscInt ind2 = ind[axis2];
 
 	/** When w = x, y, z, mu_w is defined at Hw points.  Therefore mu_w is at the 
-	  primary grid point in w axis, and at dual grid points in the other two axes. */
-	*sparam_mu_value = gi->s_dual[axis1][ind1] * gi->s_dual[axis2][ind2] / gi->s_prim[axis0][ind0];
+	  dual grid point in w axis, and at primary grid points in the other two axes. */
+	*sparam_mu_value = gi->s_prim[axis1][ind1] * gi->s_prim[axis2][ind2] / gi->s_dual[axis0][ind0];
 
 	PetscFunctionReturn(0);
 }
@@ -148,8 +134,8 @@ PetscErrorCode set_dparam_mu_at(PetscScalar *dparam_mu_value, Axis axis, const P
 	PetscInt ind2 = ind[axis2];
 
 	/** When w = x, y, z, mu_w is defined at Hw points.  Therefore mu_w is at the 
-	  primary grid point in w axis, and at dual grid points in the other two axes. */
-	*dparam_mu_value = gi->d_dual[axis1][ind1] * gi->d_dual[axis2][ind2] / gi->d_prim[axis0][ind0];
+	  dual grid point in w axis, and at primary grid points in the other two axes. */
+	*dparam_mu_value = gi->d_prim[axis1][ind1] * gi->d_prim[axis2][ind2] / gi->d_dual[axis0][ind0];
 
 	PetscFunctionReturn(0);
 }
@@ -170,8 +156,8 @@ PetscErrorCode set_sparam_eps_at(PetscScalar *sparam_eps_value, Axis axis, const
 	Axis axis2 = (Axis)((axis+2) % Naxis);
 
 	/** When w = x, y, z, eps_w is defined at Ew points.  Therefore eps_w is at the 
-	  dual grid point in w axis, and at primary grid points in the other two axes. */
-	*sparam_eps_value = gi->s_prim[axis1][ind[axis1]] * gi->s_prim[axis2][ind[axis2]] / gi->s_dual[axis0][ind[axis0]];
+	  primary grid point in w axis, and at dual grid points in the other two axes. */
+	*sparam_eps_value = gi->s_dual[axis1][ind[axis1]] * gi->s_dual[axis2][ind[axis2]] / gi->s_prim[axis0][ind[axis0]];
 
 	PetscFunctionReturn(0);
 }
@@ -192,8 +178,8 @@ PetscErrorCode set_dparam_eps_at(PetscScalar *dparam_eps_value, Axis axis, const
 	Axis axis2 = (Axis)((axis+2) % Naxis);
 
 	/** When w = x, y, z, eps_w is defined at Ew points.  Therefore eps_w is at the 
-	  dual grid point in w axis, and at primary grid points in the other two axes. */
-	*dparam_eps_value = gi->d_prim[axis1][ind[axis1]] * gi->d_prim[axis2][ind[axis2]] / gi->d_dual[axis0][ind[axis0]];
+	  primary grid point in w axis, and at dual grid points in the other two axes. */
+	*dparam_eps_value = gi->d_dual[axis1][ind[axis1]] * gi->d_dual[axis2][ind[axis2]] / gi->d_prim[axis0][ind[axis0]];
 
 	PetscFunctionReturn(0);
 }
@@ -312,7 +298,7 @@ PetscErrorCode set_dLe_at(PetscScalar *dLe_value, Axis axis, const PetscInt ind[
 	Axis axis0 = axis;
 	PetscInt ind0 = ind[axis0];
 
-	*dLe_value = gi->d_dual[axis0][ind0];
+	*dLe_value = gi->d_prim[axis0][ind0];
 
 	PetscFunctionReturn(0);
 }
@@ -331,7 +317,7 @@ PetscErrorCode set_dLh_at(PetscScalar *dLh_value, Axis axis, const PetscInt ind[
 	Axis axis0 = axis;
 	PetscInt ind0 = ind[axis0];
 
-	*dLh_value = gi->d_prim[axis0][ind0];
+	*dLh_value = gi->d_dual[axis0][ind0];
 
 	PetscFunctionReturn(0);
 }
@@ -351,7 +337,7 @@ PetscErrorCode set_sparamLe_at(PetscScalar *sparamLe_value, Axis axis, const Pet
 	Axis axis0 = axis;
 	PetscInt ind0 = ind[axis0];
 
-	*sparamLe_value = gi->s_dual[axis0][ind0];
+	*sparamLe_value = gi->s_prim[axis0][ind0];
 
 	PetscFunctionReturn(0);
 }
@@ -371,7 +357,7 @@ PetscErrorCode set_sparamLh_at(PetscScalar *sparamLh_value, Axis axis, const Pet
 	Axis axis0 = axis;
 	PetscInt ind0 = ind[axis0];
 
-	*sparamLh_value = gi->s_prim[axis0][ind0];
+	*sparamLh_value = gi->s_dual[axis0][ind0];
 
 	PetscFunctionReturn(0);
 }
@@ -393,7 +379,7 @@ PetscErrorCode set_dSe_at(PetscScalar *dSe_value, Axis axis, const PetscInt ind[
 	PetscInt ind1 = ind[axis1];
 	PetscInt ind2 = ind[axis2];
 
-	*dSe_value = gi->d_prim[axis1][ind1] * gi->d_prim[axis2][ind2];
+	*dSe_value = gi->d_dual[axis1][ind1] * gi->d_dual[axis2][ind2];
 
 	PetscFunctionReturn(0);
 }
@@ -415,7 +401,7 @@ PetscErrorCode set_dSh_at(PetscScalar *dSh_value, Axis axis, const PetscInt ind[
 	PetscInt ind1 = ind[axis1];
 	PetscInt ind2 = ind[axis2];
 
-	*dSh_value = gi->d_dual[axis1][ind1] * gi->d_dual[axis2][ind2];
+	*dSh_value = gi->d_prim[axis1][ind1] * gi->d_prim[axis2][ind2];
 
 	PetscFunctionReturn(0);
 }
@@ -438,7 +424,7 @@ PetscErrorCode set_sparamSe_at(PetscScalar *sparamSe_value, Axis axis, const Pet
 	PetscInt ind1 = ind[axis1];
 	PetscInt ind2 = ind[axis2];
 
-	*sparamSe_value = gi->s_prim[axis1][ind1] * gi->s_prim[axis2][ind2];
+	*sparamSe_value = gi->s_dual[axis1][ind1] * gi->s_dual[axis2][ind2];
 
 	PetscFunctionReturn(0);
 }
@@ -461,7 +447,7 @@ PetscErrorCode set_sparamSh_at(PetscScalar *sparamSh_value, Axis axis, const Pet
 	PetscInt ind1 = ind[axis1];
 	PetscInt ind2 = ind[axis2];
 
-	*sparamSh_value = gi->s_dual[axis1][ind1] * gi->s_dual[axis2][ind2];
+	*sparamSh_value = gi->s_prim[axis1][ind1] * gi->s_prim[axis2][ind2];
 
 	PetscFunctionReturn(0);
 }
