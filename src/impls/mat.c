@@ -1264,6 +1264,7 @@ PetscErrorCode createGD3(Mat *GD, GridInfo gi)
 	Vec invEps2Node;
 	//ierr = create_epsNode(&invEps2Node, gi); CHKERRQ(ierr);
 	//ierr = createFieldArray(&invEps2Node, set_epsNode_at, gi); CHKERRQ(ierr);
+	assert(gi.has_epsNode);
 	ierr = createVecHDF5(&invEps2Node, "/eps_node", gi); CHKERRQ(ierr);
 	ierr = VecPointwiseMult(invEps2Node, invEps2Node, invEps2Node); CHKERRQ(ierr);
 	ierr = VecReciprocal(invEps2Node); CHKERRQ(ierr);
@@ -1589,7 +1590,13 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 	/** Create the permeability vector. */
 	//ierr = create_mu(&mu, gi); CHKERRQ(ierr);
 	//ierr = createFieldArray(&mu, set_mu_at, gi); CHKERRQ(ierr);
-	ierr = createVecHDF5(&mu, "/mu", gi); CHKERRQ(ierr);
+	if (gi.has_mu) {
+		ierr = createVecHDF5(&mu, "/mu", gi); CHKERRQ(ierr);
+	} else {
+		ierr = VecDuplicate(gi.vecTemp, &mu); CHKERRQ(ierr);
+		ierr = VecSet(mu, 1.0); CHKERRQ(ierr);
+	}
+	
 	if (gi.pml_type == UPML) {
 		Vec sparamMu;
 		//ierr = create_sparamMu(&sparamMu, gi); CHKERRQ(ierr);

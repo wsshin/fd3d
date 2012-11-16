@@ -40,7 +40,7 @@ PetscErrorCode setGridInfo(GridInfo *gi)
 
 	/** Import values defined in the input file. */
 	ierr = h5get_data(inputfile_id, "/lambda", H5T_NATIVE_DOUBLE, &gi->lambda); CHKERRQ(ierr);
-	ierr = h5get_data(inputfile_id, "/omega", H5T_NATIVE_DOUBLE, &gi->omega); CHKERRQ(ierr);
+	ierr = h5get_data(inputfile_id, "/omega", H5T_NATIVE_DOUBLE, &gi->omega); CHKERRQ(ierr);  // if gi->omega is PetscScalar, its imaginary part is garbage, and can be different between processors, which generates an error
 	ierr = h5get_data(inputfile_id, "/maxit", H5T_NATIVE_INT, &gi->max_iter); CHKERRQ(ierr);
 	ierr = h5get_data(inputfile_id, "/tol", H5T_NATIVE_DOUBLE, &gi->tol); CHKERRQ(ierr);
 	ierr = h5get_data(inputfile_id, "/N", H5T_NATIVE_INT, gi->N); CHKERRQ(ierr);
@@ -139,65 +139,53 @@ PetscErrorCode setGridInfo(GridInfo *gi)
 	/** Get local-to-global mapping from DA. */
 	ierr = DMGetLocalToGlobalMapping(gi->da, &gi->map); CHKERRQ(ierr);
 
-	/** Prepare the input file name. */
-	const char *h5_ext = ".h5";
-	char inputfile_name[PETSC_MAX_PATH_LEN];
-	ierr = PetscStrcpy(inputfile_name, gi->input_name); CHKERRQ(ierr);
-	ierr = PetscStrcat(inputfile_name, h5_ext); CHKERRQ(ierr);
+	/** Set the flag mu. */
+	htri_t is_mu;
+	ierr = PetscStrcpy(datasetname, "/mu"); CHKERRQ(ierr);
+	is_mu = H5Lexists(inputfile_id, datasetname, H5P_DEFAULT);
+	if (is_mu && is_mu >=0) {
+		gi->has_mu = PETSC_TRUE;
+	} else {
+		gi->has_mu = PETSC_FALSE;
+	}
 
-	/** Get the initial guess solution. */
+	/** Set the flag for epsNode. */
+	htri_t is_epsNode;
+	ierr = PetscStrcpy(datasetname, "/eps_node"); CHKERRQ(ierr);
+	is_epsNode = H5Lexists(inputfile_id, datasetname, H5P_DEFAULT);
+	if (is_epsNode && is_epsNode >=0) {
+		gi->has_epsNode = PETSC_TRUE;
+	} else {
+		gi->has_epsNode = PETSC_FALSE;
+	}
+
+	/** Set the flag for the initial guess solution. */
 	htri_t isE0;
 	ierr = PetscStrcpy(datasetname, "/E0"); CHKERRQ(ierr);
 	isE0 = H5Lexists(inputfile_id, datasetname, H5P_DEFAULT);
 	if (isE0 && isE0 >=0) {
 		gi->has_x0 = PETSC_TRUE;
-		ierr = createVecHDF5(&gi->x0, datasetname, *gi); CHKERRQ(ierr);
-/*
-		PetscViewer viewer;
-		PetscViewerHDF5Open(PETSC_COMM_WORLD, inputfile_name, FILE_MODE_READ, &viewer);
-		PetscViewerHDF5PushGroup(viewer, "/E0");
-		ierr = VecLoad(gi->x0, viewer); CHKERRQ(ierr);
-		ierr = PetscViewerHDF5PopGroup(viewer); CHKERRQ(ierr);
-		ierr = PetscViewerDestroy(&viewer); CHKERRQ(ierr);
-*/
 	} else {
 		gi->has_x0 = PETSC_FALSE;
 	}
 
-	/** Get the reference solution. */
+	/** Set the flag for the reference solution. */
 	htri_t isEref; 
 	ierr = PetscStrcpy(datasetname, "/Eref"); CHKERRQ(ierr);
 	isEref = H5Lexists(inputfile_id, datasetname, H5P_DEFAULT);
 	if (isEref && isEref >= 0) {
 		gi->has_xref = PETSC_TRUE;
 		ierr = createVecHDF5(&gi->xref, datasetname, *gi); CHKERRQ(ierr);
-/*
-		PetscViewer viewer;
-		PetscViewerHDF5Open(PETSC_COMM_WORLD, inputfile_name, FILE_MODE_READ, &viewer);
-		PetscViewerHDF5PushGroup(viewer, "/Eref");
-		ierr = VecLoad(gi->xref, viewer); CHKERRQ(ierr);
-		ierr = PetscViewerHDF5PopGroup(viewer); CHKERRQ(ierr);
-		ierr = PetscViewerDestroy(&viewer); CHKERRQ(ierr);
-*/
 	} else {
 		gi->has_xref = PETSC_FALSE;
 	}
 
-	/** Get the incident field distribution for TF/SF. */
+	/** Set the flag for the incident field distribution for TF/SF. */
 	htri_t isEinc;
 	ierr = PetscStrcpy(datasetname, "/Einc"); CHKERRQ(ierr);
 	isEinc = H5Lexists(inputfile_id, datasetname, H5P_DEFAULT);
 	if (isEinc && isEinc >= 0) {
 		gi->has_xinc = PETSC_TRUE;
-		ierr = createVecHDF5(&gi->xref, datasetname, *gi); CHKERRQ(ierr);
-/*
-		PetscViewer viewer;
-		PetscViewerHDF5Open(PETSC_COMM_WORLD, inputfile_name, FILE_MODE_READ, &viewer);
-		PetscViewerHDF5PushGroup(viewer, "/Einc");
-		ierr = VecLoad(gi->xinc, viewer); CHKERRQ(ierr);
-		ierr = PetscViewerHDF5PopGroup(viewer); CHKERRQ(ierr);
-		ierr = PetscViewerDestroy(&viewer); CHKERRQ(ierr);
-*/
 	} else {
 		gi->has_xinc = PETSC_FALSE;
 	}

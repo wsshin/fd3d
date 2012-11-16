@@ -26,15 +26,15 @@ typedef struct {
 	PetscScalar *d_dual[Naxis];  // dx_dual, dy_dual, dz_dual
 	PetscScalar *d_prim_orig[Naxis];  // original dx_prim, dy_prim, dz_prim before stretched
 	PetscScalar *d_dual_orig[Naxis];  // original dx_dual, dy_dual, dz_dual before stretched
-	PetscScalar lambda;  // normalized wavelength
-	PetscScalar omega;  // normalized angular frequency
+	PetscReal lambda;  // normalized wavelength
+	PetscReal omega;  // normalized angular frequency
 
+	PetscBool has_mu;  // PETSC_TRUE if it has mu; PETSC_FALSE otherwise
+	PetscBool has_epsNode;  // PETSC_TRUE if it has eps_node; PETSC_FALSE otherwise
 	PetscBool has_x0;  // PETSC_TRUE if it has x0; PETSC_FALSE otherwise
-	Vec x0;  // guess solution
 	PetscBool has_xref;  // PETSC_TRUE if it has xref; PETSC_FALSE otherwise
 	Vec xref;  // reference solution
 	PetscBool has_xinc;  // PETSC_TRUE if it has xinc; PETSC_FALSE otherwise
-	Vec xinc;  // incident field
 	PetscReal norm_xref;  // infinity norm of xref
 	PetscInt max_iter;  // maximum number of iteration of BiCG
 	PetscReal tol;  // tolerance of BiCG

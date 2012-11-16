@@ -38,14 +38,8 @@ PetscErrorCode cleanup(Mat A, Vec b, Vec right_precond, Mat HE, GridInfo gi)
 	/** Finalize the program. */
 	ierr = DMDestroy(&gi.da); CHKERRQ(ierr);
 	ierr = VecDestroy(&gi.vecTemp); CHKERRQ(ierr);
-	if (gi.has_x0) {
-		ierr = VecDestroy(&gi.x0); CHKERRQ(ierr);
-	}
 	if (gi.has_xref) {
 		ierr = VecDestroy(&gi.xref); CHKERRQ(ierr);
-	}
-	if (gi.has_xinc) {
-		ierr = VecDestroy(&gi.xinc); CHKERRQ(ierr);
 	}
 
 	// Need to move this to gridinfo.c
@@ -150,8 +144,11 @@ PetscErrorCode main(int argc, char **argv)
 		Mat A_bg;
 		gi.bg_only = PETSC_TRUE;
 		ierr = create_A_and_b4(&A_bg, &b, &right_precond, &HE, gi, &ts); CHKERRQ(ierr);
-		ierr = MatMult(A_bg, gi.xinc, b); CHKERRQ(ierr);
+		Vec xinc;
+		ierr = createVecHDF5(&xinc, "/Einc", gi); CHKERRQ(ierr);
+		ierr = MatMult(A_bg, xinc, b); CHKERRQ(ierr);
 
+		ierr = VecDestroy(&xinc); CHKERRQ(ierr);
 		ierr = MatDestroy(&A_bg); CHKERRQ(ierr);
 		gi.bg_only = PETSC_FALSE;
 		ierr = updateTimeStamp(VBDetail, &ts, "TF/SF source", gi); CHKERRQ(ierr);
@@ -173,11 +170,11 @@ PetscErrorCode main(int argc, char **argv)
 	  y = diag(right_precond) x
 	 */
 	Vec x;  // actually y in the above equation
-	ierr = VecDuplicate(gi.vecTemp, &x); CHKERRQ(ierr);
 	if (gi.has_x0) {
-		ierr = VecCopy(gi.x0, x); CHKERRQ(ierr);
+		ierr = createVecHDF5(&x, "/E0", gi); CHKERRQ(ierr);
 		ierr = VecPointwiseMult(x, x, right_precond); CHKERRQ(ierr);
 	} else {  // in this case, not preconditioning x is better
+		ierr = VecDuplicate(gi.vecTemp, &x); CHKERRQ(ierr);
 		ierr = VecSet(x, 0.0); CHKERRQ(ierr);
 		//ierr = VecSetRandom(x, PETSC_NULL); CHKERRQ(ierr);  // for random initial x
 		//ierr = VecPointwiseDivide(x, x, right_precond); CHKERRQ(ierr);
