@@ -4,7 +4,6 @@
 const char * const FieldTypeName[] = {"E", "H"};
 const char * const PMLTypeName[] = {"SC-PML", "UPML"};
 const char * const PCTypeName[] = {"identity", "s-factor", "eps", "Jacobi"};
-const PetscBool USE_BC = PETSC_TRUE;
 
 //const char * const KrylovTypeName[] = {"BiCG", "QMR"};
 
@@ -16,7 +15,7 @@ const PetscBool USE_BC = PETSC_TRUE;
  * Take the div(F) operator matrix DivF, and set up the elements for d/d(p) on it, where 
  * F = E, H, and p = x, y, z, at a given location coord[].
  */
-PetscErrorCode setDpOnDivF_at(Mat DivF, FieldType ftype, Axis Pp, PetscInt i, PetscInt j, PetscInt k, GridInfo gi, PetscBool useBC)
+PetscErrorCode setDpOnDivF_at(Mat DivF, FieldType ftype, Axis Pp, PetscInt i, PetscInt j, PetscInt k, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -52,7 +51,7 @@ PetscErrorCode setDpOnDivF_at(Mat DivF, FieldType ftype, Axis Pp, PetscInt i, Pe
 	indFp[0].c = Pp; indFp[1].c = Pp;
 
 	/** Set Np. */
-	//PetscInt Np = gi.N[Pp];
+	PetscInt Np = gi.N[Pp];
 
 	/** Set (x,y,z) indices for the current grid point. */
 	indGx.i = i; indGx.j = j; indGx.k = k;
@@ -72,8 +71,11 @@ PetscErrorCode setDpOnDivF_at(Mat DivF, FieldType ftype, Axis Pp, PetscInt i, Pe
 	/** Below, I'm going to set the two matrix elements +1/dp and -1/dp at the locations 
 	  corresponding to the current Fp and the next.  If the next Fp is at the boundary (i.e. i==0 
 	  for ftype==Htype), ignore -1/dp because no Fp is available there. */
+	PetscScalar dp;
+	PetscScalar dFp[2];
+	PetscInt num_dFp = 2;
 	if (ftype==Htype) {
-		PetscScalar dp = gi.d_prim[Pp][p];
+		dp = gi.d_prim[Pp][p];
 		--coord_next[Pp];
 
 		indFp[1].i = coord_next[Xx];
@@ -81,75 +83,47 @@ PetscErrorCode setDpOnDivF_at(Mat DivF, FieldType ftype, Axis Pp, PetscInt i, Pe
 		indFp[1].k = coord_next[Zz];
 
 		/** Two matrix elements in a single row to be set at once. */
-		PetscScalar dFp[] = {1.0/dp, -1.0/dp};  // used for +(d/dp)Fp
-		PetscInt num_dFp = 2;
+		dFp[0] = 1.0/dp; dFp[1] = -1.0/dp;  // used for +(d/dp)Fp
 
 		/** Handle boundary conditions. */
-		if (useBC) {
-			if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
-				/** The tangential component of the E field on PEC is zero, and this effectively 
-				  forces the normal component of the H field zero.  Therefore, the normal component 
-				  of the H field inside PEC should be antisymmetric to that outside PEC. */
-				/** When we deal with a field component a half grid behind the boundary, we need to
-				  deal with it as if there is a symmetric or antisymmetric field behind the 
-				  boundary.  With a real PMC or PEC, all field components inside PMC or PEC are 
-				  zeros, and the surface current or charges support the field patterns in the 
-				  problem domain.  But we don't want to have extra surface currents other than the 
-				  driving source current.  Therefore we use fictitous symmetric or antisymmetric 
-				  field components instead of the surface charge or currents to support the field in 
-				  the problem domain. This way, the charge and current distribution with the 
-				  boundary remain the same as the those of the symmetric or antisymmetric field 
-				  distribution without the boundary. */
-				num_dFp = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
-				dFp[0] = 2.0/dp;
-			}
-			if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
-				//dFp[0] = 0.0; dFp[1] = 0.0;
-			}
-			if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
-				//dFp[0] = 0.0; dFp[1] = 0.0;
-			}
-			if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
-				/** PMC is usually used to simulate a whole structure with only a half structure when
-				  the field distribution is symmetric such that the normal component of the H field 
-				  is continuous while the tangential component of the H field is zero.  In the 
-				  current case of PMC at p==0, it simulates the continuous Hp and Hq==Hr==0.  
-				  But it doesn't mean that (d/dp)Hp = 0.  To simulate the whole structure with only a
-				  half structure, the image charge is formed on the PMC, and Hp inside PMC is 
-				  essentially zero. 
-				  But when we deal with a field component a half grid behind the boundary, we need to
-				  deal with it as if there is a symmetric or antisymmetric field behind the 
-				  boundary.  
-				  With a real PMC or PEC, all field components inside PMC or PEC are zeros, and the 
-				  surface current or charges support the field patterns in the problem domain.  But 
-				  we don't want to have extra surface currents other than the driving source 
-				  current.  Therefore we use fictitous symmetric or antisymmetric field components 
-				  instead of the surface charge or currents to support the field in the problem 
-				  domain. This way, the charge and current distribution with the boundary remain the 
-				  same as the those of the symmetric or antisymmetric field distribution without 
-				  the boundary. */
-				num_dFp = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
-				dFp[0] = 0.0;
-			}
-			if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
-				/** This effectively forces H components tangential to PMC zero. */
-				/** The below is mathematically the same as doing num_dFq = 0, because 
-				  num_dFq = 0 keeps matrix elements untouched, which are initially zeros.
-				  The difference is in the nonzero pattern of the matrix.  PETSc thinks 
-				  whatever elements set are nonzeros, even though we set zeros.  So if we set
-				  0.0 as matrix elements, they are actually added to the nonzero pattern of 
-				  the matrix, while they aren't in case of num_dFq = 0.  
-				  I need them added to the nonzero pattern, because otherwise when I create
-				  a matrix A = CE*INV_EPS*C_LH - w^2*mu*S/L, CE*INV_EPS*C_LH does not have 
-				  all diagonal elements in the nonzero pattern while w^2*mu*S/L does, which 
-				  prevents me from applying MatAXPY with SUBSET_NONZERO_PATTERN to subtract 
-				  w^2*mu*S/L from CE*INV_EPS*C_LH in createA() function. */
-				dFp[0] = 0.0; dFp[1] = 0.0;
-			}
-			if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
-				/** This effectively forces H components tangential to PMC zero. */
-				dFp[0] = 0.0; dFp[1] = 0.0;
-			}
+		if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
+			/** The tangential component of the E field on PEC is zero, and this effectively 
+			  forces the normal component of the H field zero.  Therefore, the normal component 
+			  of the H field inside PEC should be antisymmetric to that outside PEC. */
+			/** When we deal with a field component a half grid behind the boundary, we need to
+			  deal with it as if there is a symmetric or antisymmetric field behind the 
+			  boundary.  With a real PMC or PEC, all field components inside PMC or PEC are 
+			  zeros, and the surface current or charges support the field patterns in the 
+			  problem domain.  But we don't want to have extra surface currents other than the 
+			  driving source current.  Therefore we use fictitous symmetric or antisymmetric 
+			  field components instead of the surface charge or currents to support the field in 
+			  the problem domain. This way, the charge and current distribution with the 
+			  boundary remain the same as the those of the symmetric or antisymmetric field 
+			  distribution without the boundary. */
+			num_dFp = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
+			dFp[0] = 2.0/dp;
+		}
+		if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
+			/** PMC is usually used to simulate a whole structure with only a half structure when
+			  the field distribution is symmetric such that the normal component of the H field 
+			  is continuous while the tangential component of the H field is zero.  In the 
+			  current case of PMC at p==0, it simulates the continuous Hp and Hq==Hr==0.  
+			  But it doesn't mean that (d/dp)Hp = 0.  To simulate the whole structure with only a
+			  half structure, the image charge is formed on the PMC, and Hp inside PMC is 
+			  essentially zero. 
+			  But when we deal with a field component a half grid behind the boundary, we need to
+			  deal with it as if there is a symmetric or antisymmetric field behind the 
+			  boundary.  
+			  With a real PMC or PEC, all field components inside PMC or PEC are zeros, and the 
+			  surface current or charges support the field patterns in the problem domain.  But 
+			  we don't want to have extra surface currents other than the driving source 
+			  current.  Therefore we use fictitous symmetric or antisymmetric field components 
+			  instead of the surface charge or currents to support the field in the problem 
+			  domain. This way, the charge and current distribution with the boundary remain the 
+			  same as the those of the symmetric or antisymmetric field distribution without 
+			  the boundary. */
+			num_dFp = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
+			dFp[0] = 0.0;
 		}
 		if (p==0 && gi.bc[Pp][Pos]==Bloch) {  // p==0 plane
 			/** num_dFq==2, num_dFr==2 would access the array elements out of bounds, 
@@ -161,18 +135,89 @@ PetscErrorCode setDpOnDivF_at(Mat DivF, FieldType ftype, Axis Pp, PetscInt i, Pe
 			dFp[1] /= scale;
 		}
 
-		/** Below, ADD_VALUES is used instead of INSERT_VALUES to deal with cases of 
-		  gi.bc[Pp][Neg]==gi.bc[Pp][Pos]==Bloch and Np==1.  In such a case, p==0 and 
-		  p==Np-1 coincide, so inserting dFq[1] after dFq[0] overwrites dFq[0], which is
-		  not what we want.  On the other hand, if we add dFq[1] to dFq[0], it is 
-		  equivalent to insert -1.0/dp + 1.0/dp = 0.0, and this is what should be done
-		  because when Np==1, the E fields at p==0 and p==1(==Np) are the same, and the 
-		  line integrals on p==0 and p==1 cancel one another. */
-		ierr = MatSetValuesStencil(DivF, 1, &indGx, num_dFp, indFp, dFp, ADD_VALUES); CHKERRQ(ierr);  // Gx =  (d/dp)Fp + (d/dq)Fq + (d/dr)Fr
+		if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
+			//dFp[0] = 0.0; dFp[1] = 0.0;
+		}
+		if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
+			/** This effectively forces H components tangential to PMC zero. */
+			/** The below is mathematically the same as doing num_dFq = 0, because 
+			  num_dFq = 0 keeps matrix elements untouched, which are initially zeros.
+			  The difference is in the nonzero pattern of the matrix.  PETSc thinks 
+			  whatever elements set are nonzeros, even though we set zeros.  So if we set
+			  0.0 as matrix elements, they are actually added to the nonzero pattern of 
+			  the matrix, while they aren't in case of num_dFq = 0.  
+			  I need them added to the nonzero pattern, because otherwise when I create
+			  a matrix A = CE*INV_EPS*C_LH - w^2*mu*S/L, CE*INV_EPS*C_LH does not have 
+			  all diagonal elements in the nonzero pattern while w^2*mu*S/L does, which 
+			  prevents me from applying MatAXPY with SUBSET_NONZERO_PATTERN to subtract 
+			  w^2*mu*S/L from CE*INV_EPS*C_LH in createA() function. */
+			dFp[0] = 0.0; dFp[1] = 0.0;
+		}
+
+		if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
+			//dFp[0] = 0.0; dFp[1] = 0.0;
+		}
+		if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
+			/** This effectively forces H components tangential to PMC zero. */
+			dFp[0] = 0.0; dFp[1] = 0.0;
+		}
 	} else {
 		assert(ftype==Etype);
-		/** Not implemented.  If it needs to be implemented, use setDpOnCF_at() as a template. */
+
+		dp = gi.d_dual[Pp][p];
+		++coord_next[Pp];
+
+		indFp[1].i = coord_next[Xx];
+		indFp[1].j = coord_next[Yy];
+		indFp[1].k = coord_next[Zz];
+
+		/** Two matrix elements in a single row to be set at once. */
+		dFp[0] = -1.0/dp; dFp[1] = 1.0/dp;  // used for +(d/dp)Fp
+
+		/** Handle boundary conditions. */
+		if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
+		}
+		if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
+			/** The tangential component of the H field on PMC is zero, and this effectively 
+			  forces the normal component of the E field zero. */
+			dFp[0] = 0.0;
+		}
+		if (p==Np-1 && gi.bc[Pp][Pos]==Bloch) {  // p==0 plane
+			/** num_dFq==2, num_dFr==2 would access the array elements out of bounds, 
+			  but this is OK because MatSetValuesStencil() below supports periodic 
+			  indexing. */
+			//dFq[1] = gi.exp_neg_ikL[Pp]/Sr;
+			//dFr[1] = -gi.exp_neg_ikL[Pp]/Sq
+			PetscScalar scale = gi.exp_neg_ikL[Pp];
+			dFp[1] *= scale;
+		}
+		if (p==Np-1 && gi.bc[Pp][Pos]!=Bloch) {  // p==0 plane
+			/** num_dFq==2, num_dFr==2 would access the array elements out of bounds. */
+			/** bc[Pp][Pos]==PMC, so the normal component of the E-field is zero. */
+			num_dFp = 1;
+		}
+
+		if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
+			//dFp[0] = 0.0; dFp[1] = 0.0;
+		}
+		if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
+		}
+
+		if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
+			//dFp[0] = 0.0; dFp[1] = 0.0;
+		}
+		if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
+		}
 	}
+
+	/** Below, ADD_VALUES is used instead of INSERT_VALUES to deal with cases of 
+	  gi.bc[Pp][Neg]==gi.bc[Pp][Pos]==Bloch and Np==1.  In such a case, p==0 and 
+	  p==Np-1 coincide, so inserting dFq[1] after dFq[0] overwrites dFq[0], which is
+	  not what we want.  On the other hand, if we add dFq[1] to dFq[0], it is 
+	  equivalent to insert -1.0/dp + 1.0/dp = 0.0, and this is what should be done
+	  because when Np==1, the E fields at p==0 and p==1(==Np) are the same, and the 
+	  line integrals on p==0 and p==1 cancel one another. */
+	ierr = MatSetValuesStencil(DivF, 1, &indGx, num_dFp, indFp, dFp, ADD_VALUES); CHKERRQ(ierr);  // Gx =  (d/dp)Fp + (d/dq)Fq + (d/dr)Fr
 
 	PetscFunctionReturn(0);
 }
@@ -185,7 +230,7 @@ PetscErrorCode setDpOnDivF_at(Mat DivF, FieldType ftype, Axis Pp, PetscInt i, Pe
  * Set up the div(F) operator matrix DivF.  
  * DivF is an N x 3N matrix expanded to 3N x 3N.
  */
-PetscErrorCode setDivF(Mat DivF, FieldType ftype, GridInfo gi, PetscBool useBC)
+PetscErrorCode setDivF(Mat DivF, FieldType ftype, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -200,7 +245,7 @@ PetscErrorCode setDivF(Mat DivF, FieldType ftype, GridInfo gi, PetscBool useBC)
 		for (j = oy; j < oy+ny; ++j) {
 			for (i = ox; i < ox+nx; ++i) {
 				for (axis = 0; axis < Naxis; ++axis) {
-					ierr = setDpOnDivF_at(DivF, ftype, (Axis)axis, i, j, k, gi, useBC);
+					ierr = setDpOnDivF_at(DivF, ftype, (Axis)axis, i, j, k, gi);
 				}
 			}
 		}
@@ -229,7 +274,7 @@ PetscErrorCode createDivE(Mat *DivE, GridInfo gi)
 	ierr = MatSeqAIJSetPreallocation(*DivE, 6, PETSC_NULL); CHKERRQ(ierr);
 	ierr = MatSetLocalToGlobalMapping(*DivE, gi.map, gi.map); CHKERRQ(ierr);
 	ierr = MatSetStencil(*DivE, Naxis, gi.Nlocal_g, gi.start_g, Naxis); CHKERRQ(ierr);
-	ierr = setDivF(*DivE, Etype, gi, PETSC_TRUE); CHKERRQ(ierr);
+	ierr = setDivF(*DivE, Etype, gi); CHKERRQ(ierr);
 	ierr = MatAssemblyBegin(*DivE, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 	ierr = MatAssemblyEnd(*DivE, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 
@@ -244,7 +289,7 @@ PetscErrorCode createDivE(Mat *DivE, GridInfo gi)
  * Take the F = grad(phi) operator matrix FGrad, and set up the elements for d/d(p) on it, where 
  * F = E, H, and p = x, y, z, at a given location coord[].
  */
-PetscErrorCode setDpOnFGrad_at(Mat FGrad, FieldType ftype, Axis Pp, PetscInt i, PetscInt j, PetscInt k, GridInfo gi, PetscBool useBC)
+PetscErrorCode setDpOnFGrad_at(Mat FGrad, FieldType ftype, Axis Pp, PetscInt i, PetscInt j, PetscInt k, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -304,8 +349,11 @@ PetscErrorCode setDpOnFGrad_at(Mat FGrad, FieldType ftype, Axis Pp, PetscInt i, 
 	/** Below, I'm going to set the two matrix elements -1/dp and +1/dp at the locations 
 	  corresponding to the current Fp and the next.  If the next Fp is at the boundary (i.e. i+1==Nx 
 	  for ftype==Htype), ignore +1/dp because no Fp is available there. */
+	PetscScalar dp;
+	PetscScalar dGx[2];
+	PetscInt num_dGx = 2;
 	if (ftype==Htype) {
-		PetscScalar dp = gi.d_dual[Pp][p];
+		dp = gi.d_dual[Pp][p];
 		++coord_next[Pp];
 
 		indGx[1].i = coord_next[Xx];
@@ -313,35 +361,16 @@ PetscErrorCode setDpOnFGrad_at(Mat FGrad, FieldType ftype, Axis Pp, PetscInt i, 
 		indGx[1].k = coord_next[Zz];
 
 		/** Two matrix elements in a single row to be set at once. */
-		PetscScalar dGx[] = {-1.0/dp, 1.0/dp};  // used for +(d/dp)Fp
-		PetscInt num_dGx = 2;
+		dGx[0] = -1.0/dp; dGx[1] = 1.0/dp;  // used for +(d/dp)Fp
 
 		/** Handle boundary conditions. */
-		if (useBC) {
-			if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
-			}
-			if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
-			}
-			if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
-			}
-			if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
-			}
-			if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
-			}
-			if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
-			}
-			/*
-			   if (indGx[0].i==0 || indGx[0].j==0 || indGx[0].k==0) {
-			   dGx[0] = 0.0;
-			   }
-			   if (indGx[1].i==0 || indGx[1].j==0 || indGx[1].k==0) {
-			   dGx[1] = 0.0;
-			   }
-			 */
-			if (p==Np-1 && gi.bc[Pp][Pos]==PMC) {  // p==Np plane
-				/** Assume that phi on PMC is zero, which is the case when phi = div(esp E). */
-				num_dGx = 1; num_dGx = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
-			}
+		if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
+		}
+		if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
+		}
+		if (p==Np-1 && gi.bc[Pp][Pos]==PMC) {  // p==Np plane
+			/** Assume that phi on PMC is zero, which is the case when phi = div(esp E). */
+			num_dGx = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
 		}
 		if (p==Np-1 && gi.bc[Pp][Pos]==Bloch) {  // p==Np plane
 			/** num_dGx==2, num_dGx==2 would access the array elements out of bounds, 
@@ -353,18 +382,84 @@ PetscErrorCode setDpOnFGrad_at(Mat FGrad, FieldType ftype, Axis Pp, PetscInt i, 
 			dGx[1] *= scale;
 		}
 
-		/** Below, ADD_VALUES is used instead of INSERT_VALUES to deal with cases of 
-		  gi.bc[Pp][Neg]==gi.bc[Pp][Pos]==Bloch and Np==1.  In such a case, p==0 and 
-		  p==Np-1 coincide, so inserting dFq[1] after dFq[0] overwrites dFq[0], which is
-		  not what we want.  On the other hand, if we add dFq[1] to dFq[0], it is 
-		  equivalent to insert -1.0/dp + 1.0/dp = 0.0, and this is what should be done
-		  because when Np==1, the E fields at p==0 and p==1(==Np) are the same, and the 
-		  line integrals on p==0 and p==1 cancel one another. */
-		ierr = MatSetValuesStencil(FGrad, 1, &indFp, num_dGx, indGx, dGx, ADD_VALUES); CHKERRQ(ierr);  // Gx =  (d/dp)Fp + (d/dq)Fq + (d/dr)Fr
+		if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
+		}
+		if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
+		}
+
+		if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
+		}
+		if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
+		}
+		/*
+		   if (indGx[0].i==0 || indGx[0].j==0 || indGx[0].k==0) {
+		   dGx[0] = 0.0;
+		   }
+		   if (indGx[1].i==0 || indGx[1].j==0 || indGx[1].k==0) {
+		   dGx[1] = 0.0;
+		   }
+		 */
 	} else {
 		assert(ftype==Etype);
-		/** Not implemented.  If it needs to be implemented, use setDpOnCF_at() as a template. */
+
+		dp = gi.d_prim[Pp][p];
+		--coord_next[Pp];
+
+		indGx[1].i = coord_next[Xx];
+		indGx[1].j = coord_next[Yy];
+		indGx[1].k = coord_next[Zz];
+
+		/** Two matrix elements in a single row to be set at once. */
+		dGx[0] = 1.0/dp; dGx[1] = -1.0/dp;  // used for +(d/dp)Fp
+
+		/** Handle boundary conditions. */
+		if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
+			/** The divergences at symmetric points are the same, which makes the gradient along 
+			the surface normal direction zero. */
+			dGx[0] = 0.0; dGx[1] = 0.0;
+		}
+		if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
+			/** The divergences at symmetric points are the same, which makes the gradient along 
+			the surface normal direction zero. */
+			dGx[0] = 0.0; dGx[1] = 0.0;
+		}
+		if (p==0 && gi.bc[Pp][Pos]==Bloch) {  // p==Np plane
+			/** num_dGx==2, num_dGx==2 would access the array elements out of bounds, 
+			  but this is OK because MatSetValuesStencil() below supports periodic 
+			  indexing. */
+			//dFq[1] = gi.exp_neg_ikL[Pp]/Sr;
+			//dFr[1] = -gi.exp_neg_ikL[Pp]/Sq
+			PetscScalar scale = gi.exp_neg_ikL[Pp];
+			dGx[1] /= scale;
+		}
+
+		if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
+		}
+		if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
+		}
+
+		if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
+		}
+		if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
+		}
+		/*
+		   if (indGx[0].i==0 || indGx[0].j==0 || indGx[0].k==0) {
+		   dGx[0] = 0.0;
+		   }
+		   if (indGx[1].i==0 || indGx[1].j==0 || indGx[1].k==0) {
+		   dGx[1] = 0.0;
+		   }
+		 */
 	}
+
+	/** Below, ADD_VALUES is used instead of INSERT_VALUES to deal with cases of 
+	  gi.bc[Pp][Neg]==gi.bc[Pp][Pos]==Bloch and Np==1.  In such a case, p==0 and 
+	  p==Np-1 coincide, so inserting dFq[1] after dFq[0] overwrites dFq[0], which is
+	  not what we want.  On the other hand, if we add dFq[1] to dFq[0], it is 
+	  equivalent to insert -1.0/dp + 1.0/dp = 0.0, and this is what should be done
+	  because when Np==1, the E fields at p==0 and p==1(==Np) are the same, and the 
+	  line integrals on p==0 and p==1 cancel one another. */
+	ierr = MatSetValuesStencil(FGrad, 1, &indFp, num_dGx, indGx, dGx, ADD_VALUES); CHKERRQ(ierr);  // Gx =  (d/dp)Fp + (d/dq)Fq + (d/dr)Fr
 
 	PetscFunctionReturn(0);
 }
@@ -377,7 +472,7 @@ PetscErrorCode setDpOnFGrad_at(Mat FGrad, FieldType ftype, Axis Pp, PetscInt i, 
  * Set up the F = grad(phi) operator matrix FGrad.  
  * FGrad is a 3N x N matrix expanded to 3N x 3N.
  */
-PetscErrorCode setFGrad(Mat FGrad, FieldType ftype, GridInfo gi, PetscBool useBC)
+PetscErrorCode setFGrad(Mat FGrad, FieldType ftype, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -392,7 +487,7 @@ PetscErrorCode setFGrad(Mat FGrad, FieldType ftype, GridInfo gi, PetscBool useBC
 		for (j = oy; j < oy+ny; ++j) {
 			for (i = ox; i < ox+nx; ++i) {
 				for (axis = 0; axis < Naxis; ++axis) {
-					ierr = setDpOnFGrad_at(FGrad, ftype, (Axis)axis, i, j, k, gi, useBC);
+					ierr = setDpOnFGrad_at(FGrad, ftype, (Axis)axis, i, j, k, gi);
 				}
 			}
 		}
@@ -408,7 +503,7 @@ PetscErrorCode setFGrad(Mat FGrad, FieldType ftype, GridInfo gi, PetscBool useBC
  * --------
  * Create the matrix EGrad, the gradient operator generating E fields.
  */
-PetscErrorCode createEGrad(Mat *EGrad, GridInfo gi, PetscBool useBC)
+PetscErrorCode createEGrad(Mat *EGrad, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -421,7 +516,7 @@ PetscErrorCode createEGrad(Mat *EGrad, GridInfo gi, PetscBool useBC)
 	ierr = MatSeqAIJSetPreallocation(*EGrad, 2, PETSC_NULL); CHKERRQ(ierr);
 	ierr = MatSetLocalToGlobalMapping(*EGrad, gi.map, gi.map); CHKERRQ(ierr);
 	ierr = MatSetStencil(*EGrad, Naxis, gi.Nlocal_g, gi.start_g, Naxis); CHKERRQ(ierr);
-	ierr = setFGrad(*EGrad, Etype, gi, useBC); CHKERRQ(ierr);
+	ierr = setFGrad(*EGrad, Etype, gi); CHKERRQ(ierr);
 	ierr = MatAssemblyBegin(*EGrad, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 	ierr = MatAssemblyEnd(*EGrad, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 
@@ -436,7 +531,7 @@ PetscErrorCode createEGrad(Mat *EGrad, GridInfo gi, PetscBool useBC)
  * Take the curl(F) operator matrix CF for given F == E or H, and set up the elements
  * for d/d(p) on it, where p = x, y, z, at a given location coord[].
  */
-PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscInt j, PetscInt k, GridInfo gi, PetscBool useBC)
+PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscInt j, PetscInt k, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -507,10 +602,15 @@ PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscI
 	  locations corresponding to the current Fr (or Fq) and the next.  If the next Fr 
 	  (or Fq) is at the boundary (i.e. i+1==Nx for ftype==Htype, Pp==Xx), ignore +1/dp
 	  because no Fr (or Fq) is available there. */
+	PetscScalar dp;
+	PetscScalar dFq[2];
+	PetscScalar dFr[2];
+	PetscInt num_dFq = 2;
+	PetscInt num_dFr = 2;
 	if (ftype==Htype) {
 		//PetscScalar Sr = gi.d_prim[Pp][p] * gi.d_prim[Qq][q];
 		//PetscScalar Sq = gi.d_prim[Rr][r] * gi.d_prim[Pp][p];
-		PetscScalar dp = gi.d_dual[Pp][p];
+		dp = gi.d_dual[Pp][p];
 		++coord_next[Pp];
 
 		indFr[1].i = coord_next[Xx]; 
@@ -530,106 +630,90 @@ PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscI
 		  is equivalent to scaling one element of the vector should scaled by different values 
 		  depending on matrix elements. (This is also obvious on the nonuniform Yee's grid.) However, 	   multiplying a diagonal matrix to CE is equivalent to scaling a vector supplied to CE 
 		  elementwise, which scale each vector element by a unique amount. */
-		PetscScalar dFq[] = {-1.0/dp, 1.0/dp};  // used for +(d/dp)Fq
-		PetscScalar dFr[] = {1.0/dp, -1.0/dp};  // used for -(d/dp)Fr
-		PetscInt num_dFq = 2;
-		PetscInt num_dFr = 2;
+		dFq[0] = -1.0/dp; dFq[1] = 1.0/dp;  // used for +(d/dp)Fq
+		dFr[0] = 1.0/dp; dFr[1] = -1.0/dp;  // used for -(d/dp)Fr
 
 		/** Handle boundary conditions. */
-		if (useBC) {  // assume F is E field; othewise, assume F is just a vector at an E field point, which is used to create the curl operator without considering the BC.
-			if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
-				/*
-				   dFq[0] = -2.0/Sr; dFr[0] = 2.0/Sq; 
-				   num_dFq = 1; num_dFr = 1;
-				 */
-				/*
-				   dFq[0] = -1.0/(3.0*Sr); dFq[1] = 1.0/(3.0*Sr);
-				   dFr[0] = -1.0/(3.0*Sq); dFr[1] = 1.0/(3.0*Sq);
+		if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
+			/*
+			   dFq[0] = -2.0/Sr; dFr[0] = 2.0/Sq; 
+			   num_dFq = 1; num_dFr = 1;
+			 */
+			/*
+			   dFq[0] = -1.0/(3.0*Sr); dFq[1] = 1.0/(3.0*Sr);
+			   dFr[0] = -1.0/(3.0*Sq); dFr[1] = 1.0/(3.0*Sq);
 
-				   indFr[0].i = coord_next[Xx]; 
-				   indFr[0].j = coord_next[Yy]; 
-				   indFr[0].k = coord_next[Zz];
+			   indFr[0].i = coord_next[Xx]; 
+			   indFr[0].j = coord_next[Yy]; 
+			   indFr[0].k = coord_next[Zz];
 
-				   indFq[0].i = coord_next[Xx]; 
-				   indFq[0].j = coord_next[Yy]; 
-				   indFq[0].k = coord_next[Zz];
+			   indFq[0].i = coord_next[Xx]; 
+			   indFq[0].j = coord_next[Yy]; 
+			   indFq[0].k = coord_next[Zz];
 
-				   ++coord_next[Pp];
+			   ++coord_next[Pp];
 
-				   indFr[1].i = coord_next[Xx]; 
-				   indFr[1].j = coord_next[Yy]; 
-				   indFr[1].k = coord_next[Zz];
+			   indFr[1].i = coord_next[Xx]; 
+			   indFr[1].j = coord_next[Yy]; 
+			   indFr[1].k = coord_next[Zz];
 
-				   indFq[1].i = coord_next[Xx]; 
-				   indFq[1].j = coord_next[Yy]; 
-				   indFq[1].k = coord_next[Zz];
-				 */
-			}
-			if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
-				//dFr[0] = 0.0; dFr[1] = 0.0;
-			}
-			if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
-				//dFq[0] = 0.0; dFq[1] = 0.0;
-			}
-			if (p==0 && (gi.bc[Pp][Neg]==PMC || gi.bc[Pp][Neg]==hPMC)) {  // p==0 plane
-				/** This effectively forces H components tangential to PMC zero. */
-				dFq[0] = 0.0; 
-				dFr[0] = 0.0;
-			}
-			if (q==0 && (gi.bc[Qq][Neg]==PMC || gi.bc[Qq][Neg]==hPMC)) {  // q==0 plane
-				/** This effectively forces H components tangential to PMC zero. */
-				/** The below is mathematically the same as doing num_dFq = 0, because 
-				  num_dFq = 0 keeps matrix elements untouched, which are initially zeros.
-				  The difference is in the nonzero pattern of the matrix.  PETSc thinks 
-				  whatever elements set are nonzeros, even though we set zeros.  So if we set
-				  0.0 as matrix elements, they are actually added to the nonzero pattern of 
-				  the matrix, while they aren't in case of num_dFq = 0.  
-				  I need them added to the nonzero pattern, because otherwise when I create
-				  a matrix A = CE*INV_EPS*C_LH - w^2*mu*S/L, CE*INV_EPS*C_LH does not have 
-				  all diagonal elements in the nonzero pattern while w^2*mu*S/L does, which 
-				  prevents me from applying MatAXPY with SUBSET_NONZERO_PATTERN to subtract 
-				  w^2*mu*S/L from CE*INV_EPS*C_LH in createA() function. */
-				dFr[0] = 0.0; dFr[1] = 0.0;
-			}
-			if (r==0 && (gi.bc[Rr][Neg]==PMC || gi.bc[Rr][Neg]==hPMC)) {  // r==0 plane
-				/** This effectively forces H components tangential to PMC zero. */
-				dFq[0] = 0.0; dFq[1] = 0.0;
-			}
-			if (p==Np-1 && gi.bc[Pp][Pos]==Bloch) {  // p==Np plane
-				/** num_dFq==2, num_dFr==2 would access the array elements out of bounds, 
-				  but this is OK because MatSetValuesStencil() below supports periodic 
-				  indexing. */
-				//dFq[1] = gi.exp_neg_ikL[Pp]/Sr;
-				//dFr[1] = -gi.exp_neg_ikL[Pp]/Sq
-				PetscScalar scale = gi.exp_neg_ikL[Pp];
-				dFq[1] *= scale;
-				dFr[1] *= scale;
-			}
+			   indFq[1].i = coord_next[Xx]; 
+			   indFq[1].j = coord_next[Yy]; 
+			   indFq[1].k = coord_next[Zz];
+			 */
 		}
-		/** If one of the two indices goes beyond the index limit, we have to deal with the case
-		  even if useBC==False, because the periodic boundary condition is set on PETSc's 
-		  distributed array (DA); if we do not want the periodic boundary condition, we have to 
-		  prevent the index from going beyond the index limit. */
+		if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
+			/** This effectively forces H components tangential to PMC zero. */
+			dFq[0] = 0.0; 
+			dFr[0] = 0.0;
+		}
+		if (p==Np-1 && gi.bc[Pp][Pos]==Bloch) {  // p==Np plane
+			/** num_dFq==2, num_dFr==2 would access the array elements out of bounds, 
+			  but this is OK because MatSetValuesStencil() below supports periodic 
+			  indexing. */
+			//dFq[1] = gi.exp_neg_ikL[Pp]/Sr;
+			//dFr[1] = -gi.exp_neg_ikL[Pp]/Sq
+			PetscScalar scale = gi.exp_neg_ikL[Pp];
+			dFq[1] *= scale;
+			dFr[1] *= scale;
+		}
 		if (p==Np-1 && gi.bc[Pp][Pos]!=Bloch) {  // p==Np plane
-			/** This effectively forces H components tangential to PMC zero by 
-			  preventing the periodic boundary condition. */
-			num_dFq = 1; num_dFr = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
+			/** num_dFq==2, num_dFr==2 would access the array elements out of bounds. */ 
+			num_dFq = 1;
+			num_dFr = 1;
 		}
 
-		/** Below, ADD_VALUES is used instead of INSERT_VALUES to deal with cases of 
-		  gi.bc[Pp][Neg]==gi.bc[Pp][Pos]==Bloch and Np==1.  In such a case, p==0 and 
-		  p==Np-1 coincide, so inserting dFq[1] after dFq[0] overwrites dFq[0], which is
-		  not what we want.  On the other hand, if we add dFq[1] to dFq[0], it is 
-		  equivalent to insert -1.0/dp + 1.0/dp = 0.0, and this is what should be done
-		  because when Np==1, the E fields at p==0 and p==1(==Np) are the same, and the 
-		  line integrals on p==0 and p==1 cancel one another. */
-		ierr = MatSetValuesStencil(CF, 1, &indGr, num_dFq, indFq, dFq, ADD_VALUES); CHKERRQ(ierr);  // Gr <-- [curl(F)]r = (d/dp)Fq - (d/dq)Fp
-		ierr = MatSetValuesStencil(CF, 1, &indGq, num_dFr, indFr, dFr, ADD_VALUES); CHKERRQ(ierr);  // Gq <-- [curl(F)]q = (d/dr)Fp - (d/dp)Fr
+		if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
+			//dFr[0] = 0.0; dFr[1] = 0.0;
+		}
+		if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
+			/** This effectively forces H components tangential to PMC zero. */
+			/** The below is mathematically the same as doing num_dFq = 0, because 
+			  num_dFq = 0 keeps matrix elements untouched, which are initially zeros.
+			  The difference is in the nonzero pattern of the matrix.  PETSc thinks 
+			  whatever elements set are nonzeros, even though we set zeros.  So if we set
+			  0.0 as matrix elements, they are actually added to the nonzero pattern of 
+			  the matrix, while they aren't in case of num_dFq = 0.  
+			  I need them added to the nonzero pattern, because otherwise when I create
+			  a matrix A = CE*INV_EPS*C_LH - w^2*mu*S/L, CE*INV_EPS*C_LH does not have 
+			  all diagonal elements in the nonzero pattern while w^2*mu*S/L does, which 
+			  prevents me from applying MatAXPY with SUBSET_NONZERO_PATTERN to subtract 
+			  w^2*mu*S/L from CE*INV_EPS*C_LH in createA() function. */
+			dFr[0] = 0.0; dFr[1] = 0.0;
+		}
+
+		if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
+			//dFq[0] = 0.0; dFq[1] = 0.0;
+		}
+		if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
+			/** This effectively forces H components tangential to PMC zero. */
+			dFq[0] = 0.0; dFq[1] = 0.0;
+		}
 	} else {
 		assert(ftype==Etype);
 		//PetscScalar dq = gi.d_dual[Qq][q];
 		//PetscScalar dr = gi.d_dual[Rr][r];
-		PetscScalar dp = gi.d_prim[Pp][p];
+		dp = gi.d_prim[Pp][p];
 		--coord_next[Pp];  // It measn coord_next[Pp] is actually the "previous" coordinate in +p direction.
 
 		indFr[1].i = coord_next[Xx]; 
@@ -651,111 +735,87 @@ PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscI
 		  is equivalent to scaling one element of the vector should scaled by different values 
 		  depending on matrix elements. (This is also obvious on the nonuniform Yee's grid.) However, 	   multiplying a diagonal matrix to CE is equivalent to scaling a vector supplied to CE 
 		  elementwise, which scale each vector element by a unique amount. */
-		PetscScalar dFq[] = {1.0/dp, -1.0/dp};  // used for +(d/dp)Fq
-		PetscScalar dFr[] = {-1.0/dp, 1.0/dp};  // used for -(d/dp)Fr
-		PetscInt num_dFq = 2;
-		PetscInt num_dFr = 2;
+		dFq[0] = 1.0/dp; dFq[1] = -1.0/dp;  // used for +(d/dp)Fq
+		dFr[0] = -1.0/dp; dFr[1] = 1.0/dp;  // used for -(d/dp)Fr
 
 		/** Handle boundary conditions. */
-		if (useBC) {  // assume F is H field; othewise, assume F is just a vector at an H field point, which is used to create the curl operator without considering the BC.
-			if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
-				/** PEC is usually used to simulate a whole structure with only a half structure 
-				  when the field distribution is symmetric such that the normal component of the E 
-				  field is continuous and the tangential component of the E field is zero.  In the 
-				  current case of PEC at p==0, it simulates the continuous Ep and Eq==Er==0, which 
-				  leads to the antisymmetric distribution of Eq and Er around p==0 plane.  Then it 
-				  seems like (d/dp)Eq = (2.0/dp)*Eq and (d/dp)Er = (2.0/dp)*Er at p==0.
-				  But in reality (d/dp)Eq and (d/dp)Er at p==0 are not like that.  To simulate the 
-				  whole structure with only a half structure, the image current is formed on PEC, 
-				  and Eq and Er inside PEC is essentially zero. Therefore, the correct formulation of
-				  Maxwell's equations is to leave (d/dp)Eq = (1.0/dp)*Eq and (d/dp)Er = (1.0/dp)*Er,
-				  and put the additional magnetic surface current on PEC.  But this leads to a 
-				  technical difficulty.  First, in the continuous (not distretized) case Eq and Er on
-				  PEC are zeros, and the tangential component of curl(E) is zero on PEC.  This means 
-				  that the tangential component of the H field is completely generated by the surface
-				  magnetic current without any curl(E).  In other words, PEC can support any value of
-				  the tangential component of the H field; an appropriate surface current will be 
-				  readily generated.
-				  So instead of this "real" PEC, it is better to model PEC as a layer a half-grid 
-				  under the interface that actively generates an antisymmetric tangential component 
-				  of the H field.
-				 */
-				num_dFq = 1; num_dFr = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
-				//dFq[0] = 2.0*dq; dFr[0] = -2.0*dr;
-				//dFq[0] = 1.0/dp; dFr[0] = -1.0/dp;
-				dFq[0] = 2.0/dp; dFr[0] = -2.0/dp;
-			}
-			if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
-			}
-			if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
-			}
-			if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
-				/** This is the Neumann condition for PMC.  Basically, this makes the 
-				  resulting H field components Hq and Hr zero on p == 0 PMC.  If the source 
-				  components Mq and Mr are not zero on p == 0 PMC, I think we need to force 
-				  them zero when constructing the source vector. */
-				/** Note that the following is the same as num_dFq = 2, num_dFr = 2, dFq =
-				  {0.0, 0.0}, dFr = {0.0, 0.0}.  But then the nonzero element pattern becomes
-				  different.  So, when we perform MatAXPY(dA, -1.0, A, strct), we cannot use 
-				  strct == SAME_NONZERO_PATTERN anymore. */
-				num_dFq = 1; num_dFr = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
-				dFq[0] = 0.0;
-				dFr[0] = 0.0;
-			}
-			if (p==0 && gi.bc[Pp][Neg]==hPMC) {  // p==0 plane
-				/** Hard PMC.  Assume that the tangential component of H inside the PMC is zero, 
-				  rather than continuous.  This causes discontinuity of the tangential component of 
-				  E, which results in the surface magnetic current. */
-				/** Note that the following is the same as num_dFq = 2, num_dFr = 2, dFq =
-				  {0.0, -1.0/dp}, dFr = {0.0, 1.0/dp}.  But then the nonzero element pattern becomes
-				  different.  So, when we perform MatAXPY(dA, -1.0, A, strct), we cannot use 
-				  strct == SAME_NONZERO_PATTERN anymore. */
-				num_dFq = 1; num_dFr = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
-			}
-			if (q==0 && (gi.bc[Qq][Neg]==PMC || gi.bc[Qq][Neg]==hPMC)) {  // q==0 plane
-				/** This is the Neumann condition for PMC.  Because the H field components Hr and
-				  Hp are zeros on q == 0 PMC, and Eq that is normal to the PMC should be zero. */ 
-				dFq[0] = 0.0; dFq[1] = 0.0;
-			}
-			if (r==0 && (gi.bc[Rr][Neg]==PMC || gi.bc[Rr][Neg]==hPMC)) {  // r==0 plane
-				/** This is the Neumann condition for PMC.  Because the H field components Hp and
-				  Hq are zeros on r == 0 PMC, Er that is normal to the PMC should be zero. */ 
-				dFr[0] = 0.0; dFr[1] = 0.0;
-			}
-			if (p==0 && gi.bc[Pp][Neg]==Bloch) {  // p==0 plane
-				/** num_dFq==2, num_dFr==2 would access the array elements out of bounds, 
-				  but this is OK because MatSetValuesStencil() below supports periodic 
-				  indexing. */
-				//dFq[1] = -dq/gi.exp_neg_ikL[Pp];
-				//dFr[1] = dr/gi.exp_neg_ikL[Pp];
-				PetscScalar scale = gi.exp_neg_ikL[Pp];
-				dFq[1] /= scale;
-				dFr[1] /= scale;
-			}
-		} 
-		/** If one of the two indices goes beyond the index limit, we have to deal with the case 
-		  even if useBC==False, because the periodic boundary condition is set on PETSc's 
-		  distributed array (DA); if we do not want the periodic boundary condition, we have to 
-		  prevent the index from going beyond the index limit. */
-		if (p==0 && gi.bc[Pp][Neg]!=Bloch) {  // p==0 plane
+		if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
+			/** PEC is usually used to simulate a whole structure with only a half structure 
+			  when the field distribution is symmetric such that the normal component of the E 
+			  field is continuous and the tangential component of the E field is zero.  In the 
+			  current case of PEC at p==0, it simulates the continuous Ep and Eq==Er==0, which 
+			  leads to the antisymmetric distribution of Eq and Er around p==0 plane.  Then it 
+			  seems like (d/dp)Eq = (2.0/dp)*Eq and (d/dp)Er = (2.0/dp)*Er at p==0.
+			  But in reality (d/dp)Eq and (d/dp)Er at p==0 are not like that.  To simulate the 
+			  whole structure with only a half structure, the image current is formed on PEC, 
+			  and Eq and Er inside PEC is essentially zero. Therefore, the correct formulation of
+			  Maxwell's equations is to leave (d/dp)Eq = (1.0/dp)*Eq and (d/dp)Er = (1.0/dp)*Er,
+			  and put the additional magnetic surface current on PEC.  But this leads to a 
+			  technical difficulty.  First, in the continuous (not distretized) case Eq and Er on
+			  PEC are zeros, and the tangential component of curl(E) is zero on PEC.  This means 
+			  that the tangential component of the H field is completely generated by the surface
+			  magnetic current without any curl(E).  In other words, PEC can support any value of
+			  the tangential component of the H field; an appropriate surface current will be 
+			  readily generated.
+			  So instead of this "real" PEC, it is better to model PEC as a layer a half-grid 
+			  under the interface that actively generates an antisymmetric tangential component 
+			  of the H field.
+			 */
+			num_dFq = 1; num_dFr = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
+			//dFq[0] = 2.0*dq; dFr[0] = -2.0*dr;
+			//dFq[0] = 1.0/dp; dFr[0] = -1.0/dp;
+			dFq[0] = 2.0/dp; dFr[0] = -2.0/dp;
+		}
+		if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
+			/** This is the Neumann condition for PMC.  Basically, this makes the 
+			  resulting H field components Hq and Hr zero on p == 0 PMC.  If the source 
+			  components Mq and Mr are not zero on p == 0 PMC, I think we need to force 
+			  them zero when constructing the source vector. */
+			/** Note that the following is the same as num_dFq = 2, num_dFr = 2, dFq =
+			  {0.0, 0.0}, dFr = {0.0, 0.0}.  But then the nonzero element pattern becomes
+			  different.  So, when we perform MatAXPY(dA, -1.0, A, strct), we cannot use 
+			  strct == SAME_NONZERO_PATTERN anymore. */
+			num_dFq = 1; num_dFr = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
+			dFq[0] = 0.0;
+			dFr[0] = 0.0;
+		}
+		if (p==0 && gi.bc[Pp][Neg]==Bloch) {  // p==0 plane
 			/** num_dFq==2, num_dFr==2 would access the array elements out of bounds, 
 			  but this is OK because MatSetValuesStencil() below supports periodic 
 			  indexing. */
 			//dFq[1] = -dq/gi.exp_neg_ikL[Pp];
 			//dFr[1] = dr/gi.exp_neg_ikL[Pp];
-			num_dFq = 1; num_dFr = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
+			PetscScalar scale = gi.exp_neg_ikL[Pp];
+			dFq[1] /= scale;
+			dFr[1] /= scale;
 		}
 
-		/** Below, ADD_VALUES is used instead of INSERT_VALUES to deal with cases of 
-		  gi.bc[Pp][Neg]==gi.bc[Pp][Pos]==Bloch and Np==1.  In such a case, p==0 and 
-		  p==Np-1 coincide, so inserting dFq[1] after dFq[0] overwrites dFq[0], which is
-		  not what we want.  On the other hand, if we add dFq[1] to dFq[0], it is 
-		  equivalent to insert -1.0/dp + 1.0/dp = 0.0, and this is what should be done
-		  because when Np==1, the E fields at p==0 and p==1(==Np) are the same, and the 
-		  line integrals on p==0 and p==1 cancel one another. */
-		ierr = MatSetValuesStencil(CF, 1, &indGr, num_dFq, indFq, dFq, ADD_VALUES); CHKERRQ(ierr);  // Gr <-- [curl(F)]r = (d/dp)Fq - (d/dq)Fp
-		ierr = MatSetValuesStencil(CF, 1, &indGq, num_dFr, indFr, dFr, ADD_VALUES); CHKERRQ(ierr);  // Gq <-- [curl(F)]q = (d/dr)Fp - (d/dp)Fr
+		if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
+		}
+		if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
+			/** This is the Neumann condition for PMC.  Because the H field components Hr and
+			  Hp are zeros on q == 0 PMC, and Eq that is normal to the PMC should be zero. */ 
+			dFq[0] = 0.0; dFq[1] = 0.0;
+		}
+
+		if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
+		}
+		if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
+			/** This is the Neumann condition for PMC.  Because the H field components Hp and
+			  Hq are zeros on r == 0 PMC, Er that is normal to the PMC should be zero. */ 
+			dFr[0] = 0.0; dFr[1] = 0.0;
+		}
 	}
+
+	/** Below, ADD_VALUES is used instead of INSERT_VALUES to deal with cases of 
+	  gi.bc[Pp][Neg]==gi.bc[Pp][Pos]==Bloch and Np==1.  In such a case, p==0 and 
+	  p==Np-1 coincide, so inserting dFq[1] after dFq[0] overwrites dFq[0], which is
+	  not what we want.  On the other hand, if we add dFq[1] to dFq[0], it is 
+	  equivalent to insert -1.0/dp + 1.0/dp = 0.0, and this is what should be done
+	  because when Np==1, the E fields at p==0 and p==1(==Np) are the same, and the 
+	  line integrals on p==0 and p==1 cancel one another. */
+	ierr = MatSetValuesStencil(CF, 1, &indGr, num_dFq, indFq, dFq, ADD_VALUES); CHKERRQ(ierr);  // Gr <-- [curl(F)]r = (d/dp)Fq - (d/dq)Fp
+	ierr = MatSetValuesStencil(CF, 1, &indGq, num_dFr, indFr, dFr, ADD_VALUES); CHKERRQ(ierr);  // Gq <-- [curl(F)]q = (d/dr)Fp - (d/dp)Fr
 
 	PetscFunctionReturn(0);
 }
@@ -767,7 +827,7 @@ PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscI
  * -----
  * Set up the curl(F) operator matrix CF for given F == E or H.
  */
-PetscErrorCode setCF(Mat CF, FieldType ftype, GridInfo gi, PetscBool useBC)
+PetscErrorCode setCF(Mat CF, FieldType ftype, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -782,7 +842,7 @@ PetscErrorCode setCF(Mat CF, FieldType ftype, GridInfo gi, PetscBool useBC)
 		for (j = oy; j < oy+ny; ++j) {
 			for (i = ox; i < ox+nx; ++i) {
 				for (axis = 0; axis < Naxis; ++axis) {
-					ierr = setDpOnCF_at(CF, ftype, (Axis)axis, i, j, k, gi, useBC);
+					ierr = setDpOnCF_at(CF, ftype, (Axis)axis, i, j, k, gi);
 				}
 			}
 		}
@@ -798,7 +858,7 @@ PetscErrorCode setCF(Mat CF, FieldType ftype, GridInfo gi, PetscBool useBC)
  * --------
  * Create the matrix CH, the curl operator on H fields.
  */
-PetscErrorCode createCH(Mat *CH, GridInfo gi, PetscBool useBC)
+PetscErrorCode createCH(Mat *CH, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -811,7 +871,7 @@ PetscErrorCode createCH(Mat *CH, GridInfo gi, PetscBool useBC)
 	ierr = MatSeqAIJSetPreallocation(*CH, 4, PETSC_NULL); CHKERRQ(ierr);
 	ierr = MatSetLocalToGlobalMapping(*CH, gi.map, gi.map); CHKERRQ(ierr);
 	ierr = MatSetStencil(*CH, Naxis, gi.Nlocal_g, gi.start_g, Naxis); CHKERRQ(ierr);
-	ierr = setCF(*CH, Htype, gi, useBC); CHKERRQ(ierr);
+	ierr = setCF(*CH, Htype, gi); CHKERRQ(ierr);
 	ierr = MatAssemblyBegin(*CH, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 	ierr = MatAssemblyEnd(*CH, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 
@@ -825,7 +885,7 @@ PetscErrorCode createCH(Mat *CH, GridInfo gi, PetscBool useBC)
  * --------
  * Create the matrix CE, the curl operator on E fields.
  */
-PetscErrorCode createCE(Mat *CE, GridInfo gi, PetscBool useBC)
+PetscErrorCode createCE(Mat *CE, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -838,7 +898,7 @@ PetscErrorCode createCE(Mat *CE, GridInfo gi, PetscBool useBC)
 	ierr = MatSeqAIJSetPreallocation(*CE, 4, PETSC_NULL); CHKERRQ(ierr);
 	ierr = MatSetLocalToGlobalMapping(*CE, gi.map, gi.map); CHKERRQ(ierr);
 	ierr = MatSetStencil(*CE, Naxis, gi.Nlocal_g, gi.start_g, Naxis); CHKERRQ(ierr);
-	ierr = setCF(*CE, Etype, gi, useBC); CHKERRQ(ierr);
+	ierr = setCF(*CE, Etype, gi); CHKERRQ(ierr);
 	ierr = MatAssemblyBegin(*CE, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 	ierr = MatAssemblyEnd(*CE, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 
@@ -1006,7 +1066,74 @@ Therefore, if Gq==Ey, then Fp==Ex and dr==dx, and so on. */
 		indFw[14].i = coordFw[Xx]; indFw[14].j = coordFw[Yy]; indFw[14].k = coordFw[Zz]; indFw[14].c = Rr;
 	} else {
 		assert(ftype==Etype);
-		/** Not implemented.  If it needs to be implemented, use setDpOnCF_at() as a template. */
+
+		/** Set (x,y,z,axis) indices for the output field component Gp. */
+		/** indGp.c is the degree-of-freedom (dof) index; in FD3D used to indicate the direction of 
+		  the field component. */
+		indGp.i = i; indGp.j = j; indGp.k = k; indGp.c = Pp; 
+
+		/** Set (x,y,z,axis) indices for the input field components Fw's. */
+		PetscInt coordFw[3];  // coordinate of an input field component
+
+		/** Fw[0]: the same as the output field component */
+		coordFw[Xx] = i; coordFw[Yy] = j; coordFw[Zz] = k;
+		indFw[0].i = coordFw[Xx]; indFw[0].j = coordFw[Yy]; indFw[0].k = coordFw[Zz]; indFw[0].c = Pp;
+
+		/** Fw[1~2]: Fp at (p,q,r) = (p+-1,q,r) */
+		coordFw[Xx] = i; coordFw[Yy] = j; coordFw[Zz] = k;
+		--coordFw[Pp];
+		indFw[1].i = coordFw[Xx]; indFw[1].j = coordFw[Yy]; indFw[1].k = coordFw[Zz]; indFw[1].c = Pp;
+
+		coordFw[Xx] = i; coordFw[Yy] = j; coordFw[Zz] = k;
+		++coordFw[Pp];
+		indFw[2].i = coordFw[Xx]; indFw[2].j = coordFw[Yy]; indFw[2].k = coordFw[Zz]; indFw[2].c = Pp;
+
+		/** Fw[3~6]: Fp at (p,q,r) = (p,q+-1,r) */
+		coordFw[Xx] = i; coordFw[Yy] = j; coordFw[Zz] = k;
+		--coordFw[Qq];
+		indFw[3].i = coordFw[Xx]; indFw[3].j = coordFw[Yy]; indFw[3].k = coordFw[Zz]; indFw[3].c = Pp;
+
+		coordFw[Xx] = i; coordFw[Yy] = j; coordFw[Zz] = k;
+		++coordFw[Qq];
+		indFw[4].i = coordFw[Xx]; indFw[4].j = coordFw[Yy]; indFw[4].k = coordFw[Zz]; indFw[4].c = Pp;
+
+		/** Fw[3~6]: Fp at (p,q,r) = (p,q,r+-1) */
+		coordFw[Xx] = i; coordFw[Yy] = j; coordFw[Zz] = k;
+		--coordFw[Rr];
+		indFw[5].i = coordFw[Xx]; indFw[5].j = coordFw[Yy]; indFw[5].k = coordFw[Zz]; indFw[5].c = Pp;
+
+		coordFw[Xx] = i; coordFw[Yy] = j; coordFw[Zz] = k;
+		++coordFw[Rr];
+		indFw[6].i = coordFw[Xx]; indFw[6].j = coordFw[Yy]; indFw[6].k = coordFw[Zz]; indFw[6].c = Pp;
+
+		/** Fw[7~8]: Fq and Fr at (p,q,r) = (p,q,r) */
+		coordFw[Xx] = i; coordFw[Yy] = j; coordFw[Zz] = k;
+		indFw[7].i = coordFw[Xx]; indFw[7].j = coordFw[Yy]; indFw[7].k = coordFw[Zz]; indFw[7].c = Qq;
+		indFw[8].i = coordFw[Xx]; indFw[8].j = coordFw[Yy]; indFw[8].k = coordFw[Zz]; indFw[8].c = Rr;
+
+		/** Fw[9~10]: Fq and Fr at (p,q,r) = (p-1,q,r) */
+		coordFw[Xx] = i; coordFw[Yy] = j; coordFw[Zz] = k;
+		--coordFw[Pp];
+		indFw[9].i = coordFw[Xx]; indFw[9].j = coordFw[Yy]; indFw[9].k = coordFw[Zz]; indFw[9].c = Qq;
+		indFw[10].i = coordFw[Xx]; indFw[10].j = coordFw[Yy]; indFw[10].k = coordFw[Zz]; indFw[10].c = Rr;
+
+		/** Fw[11~12]: Fq at (p,q,r) = (p,q+1,r) and (p-1,q+1,r)*/
+		coordFw[Xx] = i; coordFw[Yy] = j; coordFw[Zz] = k;
+		++coordFw[Qq];
+		indFw[11].i = coordFw[Xx]; indFw[11].j = coordFw[Yy]; indFw[11].k = coordFw[Zz]; indFw[11].c = Qq;
+
+		coordFw[Xx] = i; coordFw[Yy] = j; coordFw[Zz] = k;
+		--coordFw[Pp]; ++coordFw[Qq];
+		indFw[12].i = coordFw[Xx]; indFw[12].j = coordFw[Yy]; indFw[12].k = coordFw[Zz]; indFw[12].c = Qq;
+
+		/** Fw[13~14]: Fr at (p,q,r) = (p,q,r+1) and (p-1,q,r+1)*/
+		coordFw[Xx] = i; coordFw[Yy] = j; coordFw[Zz] = k;
+		++coordFw[Rr];
+		indFw[13].i = coordFw[Xx]; indFw[13].j = coordFw[Yy]; indFw[13].k = coordFw[Zz]; indFw[13].c = Rr;
+
+		coordFw[Xx] = i; coordFw[Yy] = j; coordFw[Zz] = k;
+		--coordFw[Pp]; ++coordFw[Rr];
+		indFw[14].i = coordFw[Xx]; indFw[14].j = coordFw[Yy]; indFw[14].k = coordFw[Zz]; indFw[14].c = Rr;
 	}
 
 	/** Below, I'm going to set zeros at (indGp, indFw[]). */
@@ -1101,7 +1228,7 @@ PetscErrorCode createGD(Mat *GD, GridInfo gi)
 
 	/** Set up the matrix EGrad, the gradient operator generating E fields. */
 	Mat EGrad;
-	ierr = createEGrad(&EGrad, gi, USE_BC); CHKERRQ(ierr);
+	ierr = createEGrad(&EGrad, gi); CHKERRQ(ierr);
 
 	/** Set the inverse of the permittivity vector at nodes, and left-scale DivE by invEpsNode. */
 	Vec invEpsNode;
@@ -1179,7 +1306,7 @@ PetscErrorCode createGD2(Mat *GD, GridInfo gi)
 
 	/** Set up the matrix EGrad, the gradient operator generating E fields. */
 	Mat EGrad;
-	ierr = createEGrad(&EGrad, gi, USE_BC); CHKERRQ(ierr);
+	ierr = createEGrad(&EGrad, gi); CHKERRQ(ierr);
 
 	/** Set the inverse of the permittivity vector at nodes, and left-scale DivE by invEps. */
 	Vec invEps;
@@ -1244,6 +1371,7 @@ PetscErrorCode createGD2(Mat *GD, GridInfo gi)
  */
 PetscErrorCode createGD3(Mat *GD, GridInfo gi)
 {
+/** Need to divide by (eps^2 mu) rather than eps^2. */
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
 
@@ -1258,7 +1386,7 @@ PetscErrorCode createGD3(Mat *GD, GridInfo gi)
 
 	/** Set up the matrix EGrad, the gradient operator generating E fields. */
 	Mat EGrad;
-	ierr = createEGrad(&EGrad, gi, USE_BC); CHKERRQ(ierr);
+	ierr = createEGrad(&EGrad, gi); CHKERRQ(ierr);
 
 	/** Set the inverse of the permittivity vector at nodes, and left-scale DivE by invEpsNode. */
 	Vec invEps2Node;
@@ -1344,7 +1472,7 @@ PetscErrorCode createDG(Mat *DG, GridInfo gi)
 
 	/** Set up the matrix EGrad, the gradient operator generating E fields. */
 	Mat EGrad;
-	ierr = createEGrad(&EGrad, gi, USE_BC); CHKERRQ(ierr);
+	ierr = createEGrad(&EGrad, gi); CHKERRQ(ierr);
 
 	/*
 	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nEGrad\n"); CHKERRQ(ierr);
@@ -1607,11 +1735,11 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 	ierr = updateTimeStamp(VBDetail, ts, "mu vector", gi); CHKERRQ(ierr);
 
 	/** Set up the matrix CE, the curl operator on E fields. */
-	ierr = createCE(&CE, gi, USE_BC); CHKERRQ(ierr);
+	ierr = createCE(&CE, gi); CHKERRQ(ierr);
 	ierr = updateTimeStamp(VBDetail, ts, "CE matrix", gi); CHKERRQ(ierr);
 
 	/** Set up the matrix CH, the curl operator on H fields. */
-	ierr = createCH(&CH, gi, USE_BC); CHKERRQ(ierr);
+	ierr = createCH(&CH, gi); CHKERRQ(ierr);
 	ierr = updateTimeStamp(VBDetail, ts, "CH matrix", gi); CHKERRQ(ierr);
 
 	if (gi.x_type == Htype) {
@@ -1659,9 +1787,10 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 
 		/** Create the gradient-divergence operator. */
 		Mat GD;
+		//ierr = createGD(&GD, gi); CHKERRQ(ierr);
+		//ierr = createGD2(&GD, gi); CHKERRQ(ierr);
 		ierr = createGD3(&GD, gi); CHKERRQ(ierr);
 		ierr = MatDiagonalScale(GD, eps, PETSC_NULL); CHKERRQ(ierr);  // GD = eps grad[eps^-2 div()]
-		//ierr = createGD2(&GD, gi); CHKERRQ(ierr);
 		ierr = updateTimeStamp(VBDetail, ts, "GD matrix", gi); CHKERRQ(ierr);
 
 		/** Create b. */
