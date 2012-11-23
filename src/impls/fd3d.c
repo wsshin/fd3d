@@ -287,12 +287,14 @@ PetscErrorCode main(int argc, char **argv)
 		KSPConvergedReason reason;
 		ierr = KSPGetConvergedReason(ksp, &reason); CHKERRQ(ierr);
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "converged reason: %d\n", reason); CHKERRQ(ierr);
+/*
 		PetscInt num_iter;
 		PetscReal rel_res;
 
 		ierr = KSPGetIterationNumber(ksp, &num_iter); CHKERRQ(ierr);
 		ierr = KSPGetResidualNorm(ksp, &rel_res); CHKERRQ(ierr);
 		rel_res /= norm_b;
+*/
 
 		/** Clean up KSP objects. */
 		//ierr = DiagonalShellPCDestroy(&pc); CHKERRQ(ierr);
@@ -390,38 +392,39 @@ PetscErrorCode main(int argc, char **argv)
 			}
 		}
 
-		/** Check the directly calculated residual norm, which is not a by-product of the 
-		  iterative solver. */
-		Vec r;  // residual vector for x
-		ierr = VecDuplicate(x, &r); CHKERRQ(ierr);
-		ierr = MatMult(A, x, r); CHKERRQ(ierr);
-		ierr = VecAYPX(r, -1.0, b); CHKERRQ(ierr);  // r = b - A*x
-
-		PetscReal norm_r, norm_b;
-		ierr = VecNorm(r, NORM_INFINITY, &norm_r); CHKERRQ(ierr);
-		ierr = VecNorm(b, NORM_INFINITY, &norm_b); CHKERRQ(ierr);
-		PetscReal rel_res = norm_r / norm_b;
-
 		if (gi.verbose_level >= VBMedium) {
-			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\ttrue relres: %e\n", rel_res); CHKERRQ(ierr);
 			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Iterative solver finished.\n"); CHKERRQ(ierr);
 		}
-
-		/** Recover the solution for the original matrix A from the solution for the 
-		  symmetrized matrix A. */
-		ierr = VecPointwiseDivide(x, x, right_precond); CHKERRQ(ierr);
-
-		/** Output the solution. */
-		//ierr = VecAXPY(x, 1.0, e0); CHKERRQ(ierr);
-		ierr = output(gi.output_name, gi.x_type, x, HE); CHKERRQ(ierr);
-		ierr = updateTimeStamp(VBDetail, &ts, "iterative solver", gi); CHKERRQ(ierr);
-
-		/** Clean up. */
-		ierr = VecDestroy(&x); CHKERRQ(ierr);
-		ierr = cleanup(A, b, right_precond, HE, gi); CHKERRQ(ierr);
-
-		PetscFunctionReturn(0);  // finish the program
 	}
+
+	/** Check the directly calculated residual norm, which is not a by-product of the 
+	  iterative solver. */
+	Vec r;  // residual vector for x
+	ierr = VecDuplicate(x, &r); CHKERRQ(ierr);
+	ierr = MatMult(A, x, r); CHKERRQ(ierr);
+	ierr = VecAYPX(r, -1.0, b); CHKERRQ(ierr);  // r = b - A*x
+
+	PetscReal norm_r, norm_b;
+	ierr = VecNorm(r, NORM_INFINITY, &norm_r); CHKERRQ(ierr);
+	ierr = VecNorm(b, NORM_INFINITY, &norm_b); CHKERRQ(ierr);
+	PetscReal rel_res = norm_r / norm_b;
+
+	if (gi.verbose_level >= VBMedium) {
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\ttrue relres: %e\n", rel_res); CHKERRQ(ierr);
+	}
+
+	/** Recover the solution for the original matrix A from the solution for the 
+	  symmetrized matrix A. */
+	ierr = VecPointwiseDivide(x, x, right_precond); CHKERRQ(ierr);
+
+	/** Output the solution. */
+	//ierr = VecAXPY(x, 1.0, e0); CHKERRQ(ierr);
+	ierr = output(gi.output_name, gi.x_type, x, HE); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VBDetail, &ts, "iterative solver", gi); CHKERRQ(ierr);
+
+	/** Clean up. */
+	ierr = VecDestroy(&x); CHKERRQ(ierr);
+	ierr = cleanup(A, b, right_precond, HE, gi); CHKERRQ(ierr);
 
 	PetscFunctionReturn(0);  // finish the program
 }
