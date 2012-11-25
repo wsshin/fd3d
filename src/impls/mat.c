@@ -1679,6 +1679,8 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 	Vec left_precond, precond;
 	Mat CE, CH;  // curl operators on E and H
 	Mat CHE; 
+	PetscViewer viewer;
+	char fieldfile_name[PETSC_MAX_PATH_LEN];
 
 	if (gi.verbose_level >= VBMedium) {
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nCreate the matrix for %s with %s, preconditioned by %s.\n", FieldTypeName[gi.x_type], PMLTypeName[gi.pml_type], PCTypeName[gi.pc_type]); CHKERRQ(ierr);
@@ -1699,7 +1701,14 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 	/** Create the permittivity vector. */
 	//ierr = create_eps(&eps, gi); CHKERRQ(ierr);
 	//ierr = createFieldArray(&eps, set_eps_at, gi); CHKERRQ(ierr);
-	ierr = createVecHDF5(&eps, "/eps", gi); CHKERRQ(ierr);
+	//ierr = createVecHDF5(&eps, "/eps", gi); CHKERRQ(ierr);
+	ierr = PetscStrcpy(fieldfile_name, gi.input_name); CHKERRQ(ierr);
+	ierr = PetscStrcat(fieldfile_name, ".eps"); CHKERRQ(ierr);
+	ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD, fieldfile_name, FILE_MODE_READ, &viewer); CHKERRQ(ierr);
+	ierr = VecDuplicate(gi.vecTemp, &eps); CHKERRQ(ierr);
+	//ierr = VecCreate(PETSC_COMM_WORLD, &eps); CHKERRQ(ierr);
+	ierr = VecLoad(eps, viewer); CHKERRQ(ierr);
+	ierr = PetscViewerDestroy(&viewer); CHKERRQ(ierr);
 	ierr = VecDuplicate(gi.vecTemp, &epsMask); CHKERRQ(ierr);
 	ierr = VecCopy(eps, epsMask); CHKERRQ(ierr);
 	if (gi.pml_type == UPML) {
@@ -1777,7 +1786,14 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 		/** Create b. */
 		//ierr = create_jSrc(b, gi); CHKERRQ(ierr);
 		//ierr = createFieldArray(b, set_src_at, gi); CHKERRQ(ierr);
-		ierr = createVecHDF5(b, "/J", gi); CHKERRQ(ierr);
+		//ierr = createVecHDF5(b, "/J", gi); CHKERRQ(ierr);
+		ierr = PetscStrcpy(fieldfile_name, gi.input_name); CHKERRQ(ierr);
+		ierr = PetscStrcat(fieldfile_name, ".J"); CHKERRQ(ierr);
+		ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD, fieldfile_name, FILE_MODE_READ, &viewer); CHKERRQ(ierr);
+		ierr = VecDuplicate(gi.vecTemp, b); CHKERRQ(ierr);
+		//ierr = VecCreate(PETSC_COMM_WORLD, b); CHKERRQ(ierr);
+		ierr = VecLoad(*b, viewer); CHKERRQ(ierr);
+		ierr = PetscViewerDestroy(&viewer); CHKERRQ(ierr);
 		ierr = VecScale(*b, -PETSC_i*gi.omega); CHKERRQ(ierr);
 		ierr = updateTimeStamp(VBDetail, ts, "b vector", gi); CHKERRQ(ierr);
 	} else {  // currently, add_conteq only works for x_type == Etype
