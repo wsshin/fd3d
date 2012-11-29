@@ -14,6 +14,8 @@ typedef PetscErrorCode (*FunctionSetComponentAt)(PetscScalar *component, Axis ax
 
 PetscErrorCode createVecHDF5(Vec *vec, const char *dataset_name, GridInfo gi);
 
+PetscErrorCode createVecPETSc(Vec *vec, const char *dataset_name, GridInfo gi);
+
 PetscErrorCode createFieldArray(Vec *field, FunctionSetComponentAt setComponentAt, GridInfo gi);
 
 /**
