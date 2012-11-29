@@ -35,6 +35,7 @@ PetscErrorCode setGridInfo(GridInfo *gi)
 
 	hid_t inputfile_id;
 	herr_t status;
+	PetscInt axis;
 	
 	inputfile_id = H5Fopen(gi->inputfile_name, H5F_ACC_RDONLY, H5P_DEFAULT);
 
@@ -50,6 +51,8 @@ PetscErrorCode setGridInfo(GridInfo *gi)
 	ierr = h5get_data(inputfile_id, "/e_ikL", H5T_NATIVE_DOUBLE, e_ikL); CHKERRQ(ierr);
 	ierr = ri2c(e_ikL, gi->exp_neg_ikL, Naxis); CHKERRQ(ierr);
 
+ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "N = [%d, %d, %d]\n", gi->N[Xx], gi->N[Yy], gi->N[Zz]); CHKERRQ(ierr);
+
 	/** Import values defined in the input file. */
 /*
 	pFunc = PyObject_GetAttrString(gi->pSim, "get_snapshot_interval");
@@ -62,7 +65,6 @@ PetscErrorCode setGridInfo(GridInfo *gi)
 
 	const char *w = "xyz";
 	char datasetname[PETSC_MAX_PATH_LEN];
-	PetscInt axis;
 	for (axis = 0; axis < Naxis; ++axis) {
 		PetscReal temp[gi->N[axis] * Nri];
 		ierr = PetscMalloc6(
