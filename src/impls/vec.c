@@ -1,6 +1,28 @@
 #include "vec.h"
 
 #undef __FUNCT__
+#define __FUNCT__ "createVecPETSc"
+PetscErrorCode createVecPETSc(Vec *vec, const char *dataset_name, GridInfo gi)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr;
+
+	PetscViewer viewer;
+	char fieldfile_name[PETSC_MAX_PATH_LEN];
+
+	ierr = PetscStrcpy(fieldfile_name, gi.input_name); CHKERRQ(ierr);
+	ierr = PetscStrcat(fieldfile_name, "."); CHKERRQ(ierr);
+	ierr = PetscStrcat(fieldfile_name, dataset_name); CHKERRQ(ierr);
+	ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD, fieldfile_name, FILE_MODE_READ, &viewer); CHKERRQ(ierr);
+	ierr = VecDuplicate(gi.vecTemp, vec); CHKERRQ(ierr);
+	//ierr = VecCreate(PETSC_COMM_WORLD, &eps); CHKERRQ(ierr);
+	ierr = VecLoad(*vec, viewer); CHKERRQ(ierr);
+	ierr = PetscViewerDestroy(&viewer); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "createVecHDF5"
 PetscErrorCode createVecHDF5(Vec *vec, const char *dataset_name, GridInfo gi)
 {

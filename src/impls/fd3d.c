@@ -105,7 +105,7 @@ PetscErrorCode main(int argc, char **argv)
 		PetscFunctionReturn(0);
 	}
 	ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "fd3d launched.\n"); CHKERRQ(ierr);
-	ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "input file: %s.h5", gi.input_name); CHKERRQ(ierr);
+	ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "input file: %s.h5\n", gi.input_name); CHKERRQ(ierr);
 
 	/** Initialize the time stamp. */
 	TimeStamp ts;
