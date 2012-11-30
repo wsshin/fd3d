@@ -363,7 +363,8 @@ PetscErrorCode monitorSnapshot(const VerboseLevel vl, const Vec x, const Vec rig
 	if (gi->verbose_level >= vl && gi->snapshot_interval > 0 && num_iter >= 0 && num_iter % gi->snapshot_interval == 0) {
 		ierr = PetscStrcpy(snapshot_name, gi->output_name); CHKERRQ(ierr);
 		ierr = PetscStrcat(snapshot_name, "."); CHKERRQ(ierr);
-		sprintf(num_iter_str, "%d", num_iter);
+		//sprintf(num_iter_str, "%d", num_iter);
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "%d", num_iter); CHKERRQ(ierr);
 		ierr = PetscStrcat(snapshot_name, num_iter_str); CHKERRQ(ierr);
 		ierr = VecCopy(x, x_snapshot); CHKERRQ(ierr);
 		ierr = VecPointwiseDivide(x_snapshot, x_snapshot, right_precond); CHKERRQ(ierr);

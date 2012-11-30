@@ -35,17 +35,32 @@ PetscErrorCode setGridInfo(GridInfo *gi)
 
 	hid_t inputfile_id;
 	herr_t status;
-	PetscInt axis;
+	PetscInt axis, sign;
+	PetscReal temp_real;
+	PetscReal temp_array[Naxis];
+	PetscReal temp_mat[Naxis][Nsign];
 	
 	inputfile_id = H5Fopen(gi->inputfile_name, H5F_ACC_RDONLY, H5P_DEFAULT);
 
 	/** Import values defined in the input file. */
 	ierr = h5get_data(inputfile_id, "/lambda", H5T_NATIVE_DOUBLE, &gi->lambda); CHKERRQ(ierr);
 	ierr = h5get_data(inputfile_id, "/omega", H5T_NATIVE_DOUBLE, &gi->omega); CHKERRQ(ierr);  // if gi->omega is PetscScalar, its imaginary part is garbage, and can be different between processors, which generates an error
-	ierr = h5get_data(inputfile_id, "/maxit", H5T_NATIVE_INT, &gi->max_iter); CHKERRQ(ierr);
+	//ierr = h5get_data(inputfile_id, "/maxit", H5T_NATIVE_INT, &gi->max_iter); CHKERRQ(ierr);
+	ierr = h5get_data(inputfile_id, "/maxit", H5T_NATIVE_DOUBLE, &temp_real); CHKERRQ(ierr);
+	gi->max_iter = (PetscInt) temp_real;
 	ierr = h5get_data(inputfile_id, "/tol", H5T_NATIVE_DOUBLE, &gi->tol); CHKERRQ(ierr);
-	ierr = h5get_data(inputfile_id, "/N", H5T_NATIVE_INT, gi->N); CHKERRQ(ierr);
-	ierr = h5get_data(inputfile_id, "/bc", H5T_NATIVE_INT, gi->bc); CHKERRQ(ierr);
+	//ierr = h5get_data(inputfile_id, "/N", H5T_NATIVE_INT, gi->N); CHKERRQ(ierr);
+	ierr = h5get_data(inputfile_id, "/N", H5T_NATIVE_DOUBLE, temp_array); CHKERRQ(ierr);
+	for (axis = 0; axis < Naxis; ++axis) {
+		gi->N[axis] = (PetscInt) temp_array[axis];
+	}
+	//ierr = h5get_data(inputfile_id, "/bc", H5T_NATIVE_INT, gi->bc); CHKERRQ(ierr);
+	ierr = h5get_data(inputfile_id, "/bc", H5T_NATIVE_DOUBLE, temp_mat); CHKERRQ(ierr);
+	for (axis = 0; axis < Naxis; ++axis) {
+		for (sign = 0; sign < Nsign; ++sign) {
+			gi->bc[axis][sign] = (PetscInt) temp_mat[axis][sign];
+		}
+	}
 
 	PetscReal e_ikL[Naxis][Nri];
 	ierr = h5get_data(inputfile_id, "/e_ikL", H5T_NATIVE_DOUBLE, e_ikL); CHKERRQ(ierr);
