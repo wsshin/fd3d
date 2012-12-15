@@ -16,18 +16,22 @@ ext_job = '.job'
 
 '''Specify frequency range, and step size of interest.'''
 range = args[1].split(':');  # format of range is first:step:last
-first = float(range[0])
-step = float(range[1])
-last = float(range[2])
+#first = float(range[0])
+#step = float(range[1])
+#last = float(range[2])
+first = int(range[0])
+step = int(range[1])
+last = int(range[2])
 last += step
 vars = arange(first, last, step).tolist()
 pattern_inputname = re.compile('\$inputname\$')
-pattern_dp = re.compile('\.')  # decimal point
+#pattern_dp = re.compile('\.')  # decimal point
 
 file_tmj = open(name0 + ext_tmj,'r')
 for var in vars:
 	# Create a job file.
-	name = name0 + '_' + re.sub(pattern_dp, '_', str(var))
+	#name = name0 + '_' + re.sub(pattern_dp, '_', str(var))
+	name = name0 + '_' + str(var)
 	file_job = open(name + ext_job, 'w')
 	file_tmj.seek(0)
 	for line in file_tmj:
@@ -36,5 +40,4 @@ for var in vars:
 
 	# Submit the created job
 	os.system('qsub ' + name + ext_job)
-file_tmi.close()
 file_tmj.close()
