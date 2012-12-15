@@ -6,14 +6,12 @@ from numpy import arange
 from optparse import OptionParser
 
 '''Parse options.'''
-parser = OptionParser(usage='%prog [OPTION] JOB_TEMPLATE FIRST:STEP:LAST\nJOB_TEMPLATE.tmi has $scanvar$, and JOB_TEMPLATE.tmj has $inputname$.\n\nscanjob does\n- generate input files from JOB_TEMPLATE.tmi for $scanvar$=FIRST:STEP:LAST\n- generate job files from JOB_TEMPLATE.tmj\n- submit the job files.')
+parser = OptionParser(usage='%prog [OPTION] JOB_TEMPLATE FIRST:STEP:LAST\nJOB_TEMPLATE.tmj has $inputname$.\n\nscanjob does\n- generate job files from JOB_TEMPLATE.tmj for $scanvar$=FIRST:STEP:LAST\n- submit the job files.')
 (options, args) = parser.parse_args()
 
 '''Specify file name (with .job) in ../job/ directory.'''
 name0 = args[0]
-ext_tmi = '.tmi'
 ext_tmj = '.tmj'
-ext_in = '.py'
 ext_job = '.job'
 
 '''Specify frequency range, and step size of interest.'''
@@ -23,30 +21,17 @@ step = float(range[1])
 last = float(range[2])
 last += step
 vars = arange(first, last, step).tolist()
-pattern_var = re.compile('\$scanvar\$')
-pattern_inname = re.compile('\$inname\$')
+pattern_inputname = re.compile('\$inputname\$')
 pattern_dp = re.compile('\.')  # decimal point
 
-file_tmi = open(name0 + ext_tmi,'r')
 file_tmj = open(name0 + ext_tmj,'r')
 for var in vars:
-	name = name0 + '_' + re.sub(pattern_dp, '_', str(var))
-
-	# Create an input file.
-	file_in = open(name + ext_in, 'w')
-	file_tmi.seek(0)
-	for line in file_tmi:
-		if pattern_var.search(line):
-			file_in.write(re.sub(pattern_var, str(var), line))
-		else:
-			file_in.write(line)
-	file_in.close()
-
 	# Create a job file.
+	name = name0 + '_' + re.sub(pattern_dp, '_', str(var))
 	file_job = open(name + ext_job, 'w')
 	file_tmj.seek(0)
 	for line in file_tmj:
-		file_job.write(re.sub(pattern_inname, name, line))
+		file_job.write(re.sub(pattern_inputname, name, line))
 	file_job.close()
 
 	# Submit the created job
