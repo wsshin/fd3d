@@ -6,7 +6,7 @@ from numpy import arange
 from optparse import OptionParser
 
 '''Parse options.'''
-parser = OptionParser(usage='%prog [OPTION] JOB_TEMPLATE FIRST:STEP:LAST\nJOB_TEMPLATE.tmj has $inputname$.\n\nscanjob does\n- generate job files from JOB_TEMPLATE.tmj for $scanvar$=FIRST:STEP:LAST\n- submit the job files.')
+parser = OptionParser(usage='%prog [OPTION] JOB_TEMPLATE FIRST:STEP:LAST\n\nscanjob does:\n- read JOB_TEMPLATE.tmj line-by-line\n- replace $inputname$ in each line with JOB_TEMPLATE_scanvar\n- save the modified lines in JOB_TEMPLATE_scanvar.job file\n- submit the generated job file\n- repeat the process for scanvar=FIRST:STEP:LAST')
 (options, args) = parser.parse_args()
 
 '''Specify file name (with .job) in ../job/ directory.'''
@@ -32,12 +32,13 @@ for var in vars:
 	# Create a job file.
 	#name = name0 + '_' + re.sub(pattern_dp, '_', str(var))
 	name = name0 + '_' + str(var)
-	file_job = open(name + ext_job, 'w')
-	file_tmj.seek(0)
-	for line in file_tmj:
-		file_job.write(re.sub(pattern_inputname, name, line))
-	file_job.close()
+	if not os.path.isfile(name+'.E.h5') or not os.path.isfile(name+'.H.h5'):
+		file_job = open(name + ext_job, 'w')
+		file_tmj.seek(0)
+		for line in file_tmj:
+			file_job.write(re.sub(pattern_inputname, name, line))
+		file_job.close()
 
-	# Submit the created job
-	os.system('qsub ' + name + ext_job)
+		# Submit the created job
+		os.system('qsub ' + name + ext_job)
 file_tmj.close()
