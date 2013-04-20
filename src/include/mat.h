@@ -17,4 +17,15 @@
 
 PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, GridInfo gi, TimeStamp *ts);
 
+PetscErrorCode createDivE(Mat *DivE, GridInfo gi);
+
+PetscErrorCode stretch_d(GridInfo *gi);
+
+PetscErrorCode unstretch_d(GridInfo *gi);
+
+PetscErrorCode createCH(Mat *CH, GridInfo gi);
+
+PetscErrorCode createCE(Mat *CE, GridInfo gi);
+
+
 #endif

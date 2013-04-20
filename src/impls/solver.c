@@ -1,4 +1,5 @@
 #include "solver.h"
+#include "mat.h"
 
 #undef __FUNCT__
 #define __FUNCT__ "bicgSymmetric_kernel"
@@ -349,6 +350,315 @@ PetscErrorCode bicg_kernel(const Mat A, Vec x, const Vec b, const Vec right_prec
 	ierr = VecDestroy(&q); CHKERRQ(ierr);
 	ierr = VecDestroy(&Ap); CHKERRQ(ierr);
 	ierr = VecDestroy(&Aq); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "apply_A"
+PetscErrorCode apply_A(const Mat CH, const Mat CE, const Vec mu, const Vec eps, const PetscReal omegasq, const Vec x, Vec y)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr;
+	Vec vecTemp;
+
+	ierr = VecDuplicate(x, &vecTemp); CHKERRQ(ierr);
+
+	ierr = VecPointwiseDivide(y, x, eps); CHKERRQ(ierr);  // y = eps^-1 * x
+	ierr = MatMult(CE, y, vecTemp); CHKERRQ(ierr);  // vecTemp = CE * eps^-1 * x
+	ierr = VecPointwiseDivide(vecTemp, vecTemp, mu); CHKERRQ(ierr);  // vecTemp = mu^-1 * CE * eps^-1 * x
+	ierr = MatMult(CH, vecTemp, y); CHKERRQ(ierr);  // y = CH * mu^-1 * CE * eps^-1 * x
+	ierr = VecAXPY(y, -omegasq, x); CHKERRQ(ierr);  // y = CH * mu^-1 * CE * eps^-1 * x - omega^2 * x
+
+	ierr = VecDestroy(&vecTemp); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "apply_Atranspose"
+PetscErrorCode apply_Atranspose(const Mat CH, const Mat CE, const Vec mu, const Vec eps, const PetscReal omegasq, const Vec x, Vec y)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr;
+	Vec vecTemp;
+
+	ierr = VecDuplicate(x, &vecTemp); CHKERRQ(ierr);
+
+	ierr = MatMultTranspose(CH, x, vecTemp); CHKERRQ(ierr);  // vecTemp = CH^T * x
+	ierr = VecPointwiseDivide(vecTemp, vecTemp, mu); CHKERRQ(ierr);  // vecTemp = mu^-1 * CH^T * x
+	ierr = MatMultTranspose(CE, vecTemp, y); CHKERRQ(ierr);  // y = CE^T * mu^-1 * CH^T * x
+	ierr = VecPointwiseDivide(y, y, eps); CHKERRQ(ierr);  // y = eps^-1 * CE^T * mu^-1 * CH^T * x
+
+	ierr = VecAXPY(y, -omegasq, x); CHKERRQ(ierr);  // y = eps^-1 * CE^T * mu^-1 * CH^T * x - omega^2 * x
+
+	ierr = VecDestroy(&vecTemp); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "bicg_component_kernel"
+PetscErrorCode bicg_component_kernel(const Mat DivE, const Mat CH, const Mat CE, const Vec mu, const Vec eps, const PetscReal omegasq, const Vec b, Vec x, GridInfo gi, TimeStamp *ts)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr;
+
+	/** Begin iterative solver implementation. */
+	MonitorIteration monitor = monitorAll;
+
+	ierr = VecCopy(b, x); CHKERRQ(ierr);
+	ierr = VecScale(x, -1/omegasq); CHKERRQ(ierr);
+
+	/*
+	   Vec y;
+	   ierr = VecDuplicate(x, &y); CHKERRQ(ierr);
+	   ierr = VecCopy(x, y); CHKERRQ(ierr);
+	 */
+
+	Vec r;  // residual for x
+	ierr = VecDuplicate(x, &r); CHKERRQ(ierr);
+	ierr = apply_A(CH, CE, mu, eps, omegasq, x, r); CHKERRQ(ierr);  // r = A*x
+	ierr = VecAYPX(r, -1.0, b); CHKERRQ(ierr);  // r = b - A*x
+
+	Vec s;  // residual for y
+	ierr = VecDuplicate(x, &s); CHKERRQ(ierr);
+	/*
+	//ierr = MatMultTranspose(A, y, s); CHKERRQ(ierr);
+	ierr = MatMult(A, y, s); CHKERRQ(ierr);
+	ierr = VecAYPX(s, -1.0, b); CHKERRQ(ierr);  // s = b - (A^T)*y
+	 */
+	/** It turned out that it is very important to set s = r for better convergence. */
+	ierr = VecCopy(r, s); CHKERRQ(ierr);
+	//ierr = MatMult(A, r, s); CHKERRQ(ierr);  // Fletcher's choice
+	ierr = VecConjugate(s); CHKERRQ(ierr);  // this makes s^T * r = conj(r)^T * r = <r, r>
+
+	Vec p;
+	ierr = VecDuplicate(x, &p); CHKERRQ(ierr);
+	ierr = VecCopy(r, p); CHKERRQ(ierr);  // p = r
+
+	Vec q;
+	ierr = VecDuplicate(x, &q); CHKERRQ(ierr);
+	ierr = VecCopy(s, q); CHKERRQ(ierr);  // q = s
+
+	PetscReal norm_r, norm_b;
+	ierr = VecNorm(r, NORM_INFINITY, &norm_r); CHKERRQ(ierr);
+	ierr = VecNorm(b, NORM_INFINITY, &norm_b); CHKERRQ(ierr);
+
+	PetscReal rel_res = norm_r / norm_b;  // relative residual
+
+	PetscScalar sr;  // s^T * r
+	ierr = VecTDot(s, r, &sr); CHKERRQ(ierr);
+
+	Vec Ap;  // A*p
+	ierr = VecDuplicate(x, &Ap); CHKERRQ(ierr);
+
+	Vec Aq;  // A^T * q
+	ierr = VecDuplicate(x, &Aq); CHKERRQ(ierr);
+
+	PetscScalar qAp;  // q^T * Ap
+	PetscScalar alpha;  // sr/qAp
+	PetscScalar gamma;  // sr_curr / sr_prev
+
+Vec temp, temp2;
+ierr = VecDuplicate(x, &temp); CHKERRQ(ierr);
+ierr = VecDuplicate(x, &temp2); CHKERRQ(ierr);
+PetscReal norm_temp;
+
+	/*
+	   PetscReal norm;
+	   ierr = VecNorm(Ap, NORM_INFINITY, &norm); CHKERRQ(ierr);
+	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(Ap) = %e\n", norm); CHKERRQ(ierr);
+	   ierr = VecNorm(p, NORM_INFINITY, &norm); CHKERRQ(ierr);
+	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(p) = %e\n", norm); CHKERRQ(ierr);
+	   ierr = VecNorm(q, NORM_INFINITY, &norm); CHKERRQ(ierr);
+	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(q) = %e\n", norm); CHKERRQ(ierr);
+	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "qAp = %e\n", qAp); CHKERRQ(ierr);
+	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(r) = %e\n", norm_r); CHKERRQ(ierr);
+	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(b) = %e\n", norm_b); CHKERRQ(ierr);
+	 */
+	PetscInt max_iter = gi.max_iter;
+	PetscReal tol = gi.tol;
+	PetscInt num_iter;
+	for (num_iter = 0; (max_iter <= 0 || num_iter < max_iter) && rel_res > tol; ++num_iter) {
+		if (monitor != PETSC_NULL) {
+			ierr = monitor(VBMedium, x, eps, num_iter, rel_res, CH, &gi); CHKERRQ(ierr);
+		}
+//ierr = apply_A(CH, CE, mu, eps, omegasq, x, temp); CHKERRQ(ierr);  // temp = A*x
+//ierr = VecAYPX(temp, -1.0, b); CHKERRQ(ierr);  // temp = b - A*x
+//ierr = MatMult(DivE, temp, temp2); CHKERRQ(ierr);
+//ierr = VecNorm(temp2, NORM_2, &norm_temp); CHKERRQ(ierr);
+//ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Div(b-Ax): %e\t", norm_temp/norm_b); CHKERRQ(ierr);
+
+		ierr = apply_A(CH, CE, mu, eps, omegasq, p, Ap); CHKERRQ(ierr);  // Ap = A*p
+//ierr = MatMult(DivE, Ap, temp2); CHKERRQ(ierr);
+//ierr = VecNorm(temp2, NORM_2, &norm_temp); CHKERRQ(ierr);
+//ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Div(Ap): %e\t", norm_temp/norm_b); CHKERRQ(ierr);
+		//ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(r) = %e\n", norm_r); CHKERRQ(ierr);
+		/*
+		   ierr = VecNorm(Ap, NORM_INFINITY, &norm); CHKERRQ(ierr);
+		   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(Ap) = %e\n", norm); CHKERRQ(ierr);
+		 */
+		ierr = apply_Atranspose(CH, CE, mu, eps, omegasq, q, Aq); CHKERRQ(ierr);  // Aq = A^T * q
+		/*
+		   ierr = VecNorm(Aq, NORM_INFINITY, &norm); CHKERRQ(ierr);
+		   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(Aq) = %e\n", norm); CHKERRQ(ierr);
+		   ierr = VecNorm(q, NORM_INFINITY, &norm); CHKERRQ(ierr);
+		   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(q) = %e\n", norm); CHKERRQ(ierr);
+		 */
+		ierr = VecTDot(q, Ap, &qAp); CHKERRQ(ierr);  // qAp = q^T * Ap
+
+		//ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "sr = %e + i %e, qAp = %e + i %e\n", PetscRealPart(sr), PetscImaginaryPart(sr), PetscRealPart(qAp), PetscImaginaryPart(qAp)); CHKERRQ(ierr);  // should give the same values as the corresponding values in CGS
+
+		alpha = sr / qAp;
+
+		ierr = VecAXPY(x, alpha, p); CHKERRQ(ierr);  // x = x + alpha * p
+
+		ierr = VecAXPY(r, -alpha, Ap); CHKERRQ(ierr);  // r = r - alpha * Ap
+		ierr = VecAXPY(s, -alpha, Aq); CHKERRQ(ierr);  // s = s - alpha * Aq
+
+		gamma = sr;
+		ierr = VecTDot(s, r, &sr); CHKERRQ(ierr);  // sr = s^T * r
+		gamma = sr / gamma;  // gamma = sr_curr / sr_prev
+
+		ierr = VecAYPX(p, gamma, r); CHKERRQ(ierr);  // p = r + gamma * p
+		ierr = VecAYPX(q, gamma, s); CHKERRQ(ierr);  // q = s + gamma * q
+
+		ierr = VecNorm(r, NORM_INFINITY, &norm_r); CHKERRQ(ierr);
+		rel_res = norm_r / norm_b;
+
+		/*
+		   ierr = VecNorm(Ap, NORM_INFINITY, &norm); CHKERRQ(ierr);
+		   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nnorm(Ap) = %e\n", norm); CHKERRQ(ierr);
+		   ierr = VecNorm(q, NORM_INFINITY, &norm); CHKERRQ(ierr);
+		   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(q) = %e\n", norm); CHKERRQ(ierr);
+		   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "qAp = %e\n", qAp); CHKERRQ(ierr);
+		   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(r) = %e\n", norm_r); CHKERRQ(ierr);
+		 */
+	}
+	if (monitor != PETSC_NULL) {
+		ierr = monitor(VBCompact, x, eps, num_iter, rel_res, CH, &gi); CHKERRQ(ierr);
+	}
+
+	//ierr = VecDestroy(&y); CHKERRQ(ierr);
+	ierr = VecDestroy(&r); CHKERRQ(ierr);
+	ierr = VecDestroy(&s); CHKERRQ(ierr);
+	ierr = VecDestroy(&p); CHKERRQ(ierr);
+	ierr = VecDestroy(&q); CHKERRQ(ierr);
+	ierr = VecDestroy(&Ap); CHKERRQ(ierr);
+	ierr = VecDestroy(&Aq); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "bicg_component"
+PetscErrorCode bicg_component(Vec x, GridInfo gi, TimeStamp *ts)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr;
+
+	/** Create component matrices and b. */
+	Vec eps, mu, b; 
+	Mat DivE, CE, CH;  // curl operators on E and H
+	PetscReal omegasq = gi.omega * gi.omega;
+
+	ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Create the matrix components.\n"); CHKERRQ(ierr);
+
+	/** Stretch gi.d_prim and gi.d_dual by gi.s_prim and gi.s_dual. */
+	if (gi.pml_type == SCPML) {
+		ierr = stretch_d(&gi); CHKERRQ(ierr);
+	}
+
+	/** Create the permittivity vector. */
+	//ierr = create_eps(&eps, gi); CHKERRQ(ierr);
+	//ierr = createFieldArray(&eps, set_eps_at, gi); CHKERRQ(ierr);
+	//ierr = createVecHDF5(&eps, "/eps", gi); CHKERRQ(ierr);
+	ierr = createVecPETSc(&eps, "eps", gi); CHKERRQ(ierr);
+	if (gi.pml_type == UPML) {
+		Vec sparamEps;
+		//ierr = create_sparamEps(&sparamEps, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&sparamEps, set_sparam_eps_at, gi); CHKERRQ(ierr);
+		ierr = VecPointwiseMult(eps, eps, sparamEps); CHKERRQ(ierr);
+		ierr = VecDestroy(&sparamEps); CHKERRQ(ierr);
+	}
+	//ierr = create_epsMask(&epsMask, gi); CHKERRQ(ierr);  // to handle TruePEC objects
+	//ierr = createFieldArray(&epsMask, set_epsMask_at, gi); CHKERRQ(ierr);  // to handle TruePEC objects
+	ierr = updateTimeStamp(VBDetail, ts, "eps vector", gi); CHKERRQ(ierr);
+
+
+	/** Create the permeability vector. */
+	//ierr = create_mu(&mu, gi); CHKERRQ(ierr);
+	//ierr = createFieldArray(&mu, set_mu_at, gi); CHKERRQ(ierr);
+	if (gi.has_mu) {
+		ierr = createVecHDF5(&mu, "/mu", gi); CHKERRQ(ierr);
+	} else {
+		ierr = VecDuplicate(gi.vecTemp, &mu); CHKERRQ(ierr);
+		ierr = VecSet(mu, 1.0); CHKERRQ(ierr);
+	}
+
+	if (gi.pml_type == UPML) {
+		Vec sparamMu;
+		//ierr = create_sparamMu(&sparamMu, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&sparamMu, set_sparam_mu_at, gi); CHKERRQ(ierr);
+		ierr = VecPointwiseMult(mu, mu, sparamMu); CHKERRQ(ierr);
+		ierr = VecDestroy(&sparamMu); CHKERRQ(ierr);
+	}
+	ierr = updateTimeStamp(VBDetail, ts, "mu vector", gi); CHKERRQ(ierr);
+
+	/** Set up the matrix CE, the curl operator on E fields. */
+	ierr = createCE(&CE, gi); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VBDetail, ts, "CE matrix", gi); CHKERRQ(ierr);
+
+	/** Set up the matrix CH, the curl operator on H fields. */
+	ierr = createCH(&CH, gi); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VBDetail, ts, "CH matrix", gi); CHKERRQ(ierr);
+
+	if (gi.x_type == Htype) {
+		Mat mat_temp;
+		Vec vec_temp;
+
+		mat_temp = CE; CE = CH; CH = mat_temp;
+		vec_temp = eps; eps = mu; mu = vec_temp;
+	}
+
+	ierr = createVecPETSc(&b, "J", gi); CHKERRQ(ierr);
+	ierr = VecScale(b, -PETSC_i*gi.omega); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VBDetail, ts, "b vector", gi); CHKERRQ(ierr);
+
+	/** Create DivE. */
+	ierr = createDivE(&DivE, gi); CHKERRQ(ierr);
+
+	/** Recover the original d_dual and d_prim. */
+	if (gi.pml_type == SCPML) {
+		ierr = unstretch_d(&gi); CHKERRQ(ierr);
+	}
+
+	/** Begin iterative solver implementation. */
+	PetscInt n_outer = log(1e-6) / log(gi.tol);
+	PetscInt i_outer;
+	Vec xi, ri;
+	ierr = VecDuplicate(x, &xi); CHKERRQ(ierr);
+	ierr = VecDuplicate(x, &ri); CHKERRQ(ierr);
+	ierr = VecZeroEntries(x); CHKERRQ(ierr);
+	ierr = VecCopy(b, ri); CHKERRQ(ierr);
+	for (i_outer = 0; i_outer < n_outer; ++i_outer) {
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\ni_outer = %d\n", i_outer); CHKERRQ(ierr);
+		ierr = bicg_component_kernel(DivE, CH, CE, mu, eps, omegasq, ri, xi, gi, ts);
+		ierr = VecAXPY(x, 1.0, xi); CHKERRQ(ierr);
+		ierr = apply_A(CH, CE, mu, eps, omegasq, x, ri); CHKERRQ(ierr);  // r = A*x
+		ierr = VecAYPX(ri, -1.0, b); CHKERRQ(ierr);
+	}
+
+
+	ierr = MatDestroy(&DivE); CHKERRQ(ierr);
+	ierr = MatDestroy(&CE); CHKERRQ(ierr);
+	ierr = MatDestroy(&CH); CHKERRQ(ierr);
+	ierr = VecDestroy(&mu); CHKERRQ(ierr);
+	ierr = VecDestroy(&eps); CHKERRQ(ierr);
+	ierr = VecDestroy(&b); CHKERRQ(ierr);
+	ierr = VecDestroy(&xi); CHKERRQ(ierr);
+	ierr = VecDestroy(&ri); CHKERRQ(ierr);
 
 	PetscFunctionReturn(0);
 }

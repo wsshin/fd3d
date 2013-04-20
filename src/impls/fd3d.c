@@ -175,9 +175,15 @@ PetscErrorCode main(int argc, char **argv)
 		ierr = VecPointwiseMult(x, x, right_precond); CHKERRQ(ierr);
 	} else {  // in this case, not preconditioning x is better
 		ierr = VecDuplicate(gi.vecTemp, &x); CHKERRQ(ierr);
-		//ierr = VecSet(x, 0.0); CHKERRQ(ierr);
-		ierr = VecSetRandom(x, PETSC_NULL); CHKERRQ(ierr);  // for random initial x
-		ierr = VecPointwiseDivide(x, x, right_precond); CHKERRQ(ierr);
+		ierr = VecSet(x, 0.0); CHKERRQ(ierr);
+//		ierr = VecSetRandom(x, PETSC_NULL); CHKERRQ(ierr);  // for random initial x
+//		ierr = VecPointwiseDivide(x, x, right_precond); CHKERRQ(ierr);
+
+		/** For initial condition trick */
+/*
+		ierr = VecCopy(b, x); CHKERRQ(ierr);
+		ierr = VecScale(x, PETSC_i/gi.omega); CHKERRQ(ierr);
+*/
 	}
 	//ierr = VecCopy(e0, x); CHKERRQ(ierr);
 	//ierr = VecCopy(epsE0, x); CHKERRQ(ierr);
@@ -386,6 +392,30 @@ PetscErrorCode main(int argc, char **argv)
 
 			ierr = solver(A, x, b, right_precond, HE, gi); CHKERRQ(ierr);
 			//ierr = solver(GD, x, b, right_precond, HE, gi); CHKERRQ(ierr);
+
+			//ierr = bicg_component(x, gi, &ts); CHKERRQ(ierr);
+
+			/** Iterative refinement using the initial condition trick. */
+/*
+			PetscInt i_outer;
+			Vec x0, rk;
+			ierr = VecDuplicate(gi.vecTemp, &x0); CHKERRQ(ierr);
+			ierr = VecDuplicate(gi.vecTemp, &rk); CHKERRQ(ierr);
+			ierr = VecZeroEntries(x); CHKERRQ(ierr);
+			gi.tol = 1e-6;
+			//gi.max_iter = 10;
+			for (i_outer = 0; i_outer < 1; ++i_outer) {
+				ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "i_outer = %d\n", i_outer); CHKERRQ(ierr);
+				ierr = MatMult(A, x, rk); CHKERRQ(ierr);  // rk = A*x
+				ierr = VecAXPY(rk, -(gi.omega*gi.omega), x); CHKERRQ(ierr);
+				ierr = VecAYPX(rk, -1.0, b); CHKERRQ(ierr);  // rk = b - rk
+				ierr = VecCopy(rk, x0); CHKERRQ(ierr);
+				ierr = VecScale(x0, -1/(gi.omega*gi.omega)); CHKERRQ(ierr);
+				ierr = solver(A, x0, rk, right_precond, HE, gi); CHKERRQ(ierr);  // now x0 is solution
+				//ierr = solver(GD, x, b, right_precond, HE, gi); CHKERRQ(ierr);
+				ierr = VecAXPY(x, 1.0, x0); CHKERRQ(ierr);  // x = x + x0
+			}
+*/
 
 			if (gi.output_relres) {
 				fclose(gi.relres_file);
