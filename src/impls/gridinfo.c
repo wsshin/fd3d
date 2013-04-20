@@ -167,6 +167,7 @@ ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\tN = [%d, %d, %d]\n", gi->N[Xx],
 	}
 
 	/** Set the flag for epsNode. */
+/*
 	htri_t is_epsNode;
 	ierr = PetscStrcpy(datasetname, "/eps_node"); CHKERRQ(ierr);
 	is_epsNode = H5Lexists(inputfile_id, datasetname, H5P_DEFAULT);
@@ -175,6 +176,8 @@ ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\tN = [%d, %d, %d]\n", gi->N[Xx],
 	} else {
 		gi->has_epsNode = PETSC_FALSE;
 	}
+*/
+	gi->has_epsNode = PETSC_TRUE;
 
 	/** Set the flag for the initial guess solution. */
 	htri_t isE0;

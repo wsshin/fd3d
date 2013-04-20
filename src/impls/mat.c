@@ -1393,7 +1393,8 @@ PetscErrorCode createGD3(Mat *GD, GridInfo gi)
 	//ierr = create_epsNode(&invEps2Node, gi); CHKERRQ(ierr);
 	//ierr = createFieldArray(&invEps2Node, set_epsNode_at, gi); CHKERRQ(ierr);
 	assert(gi.has_epsNode);
-	ierr = createVecHDF5(&invEps2Node, "/eps_node", gi); CHKERRQ(ierr);
+	//ierr = createVecHDF5(&invEps2Node, "/eps_node", gi); CHKERRQ(ierr);
+	ierr = createVecPETSc(&invEps2Node, "eps_node", gi); CHKERRQ(ierr);
 	ierr = VecPointwiseMult(invEps2Node, invEps2Node, invEps2Node); CHKERRQ(ierr);
 	ierr = VecReciprocal(invEps2Node); CHKERRQ(ierr);
 	ierr = MatDiagonalScale(DivE, invEps2Node, PETSC_NULL); CHKERRQ(ierr);
