@@ -6,15 +6,15 @@ CLEANFILES = fd3d
 UTIL = util
 INC = include
 
-CPPFLAGS = ${CPPFLAGS} -I${INC}
 CFLAGS = ${CFLAGS_CUSTOM}
+LDFLAGS = ${LDFLAGS_CUSTOM}
 FFLAGS =
 FPPFLAGS =
 
 ifeq (${DEBUG}, 0)
-	CPPFLAGS = -I${INC}
+	CPPFLAGS = ${CPPFLAGS_CUSTOM} -I${INC}
 else
-	CPPFLAGS = -g -I${INC}
+	CPPFLAGS = -g ${CPPFLAGS_CUSTOM} -I${INC}
 endif
 
 include ${PETSC_DIR}/conf/variables
@@ -30,7 +30,7 @@ output.o: ${INC}/output.h
 
 # Use ${FD3D_ROOT} instead of .. to keep these files in src/makefiles/ directory.
 fd3d: fd3d.o h5.o mat.o gridinfo.o logging.o vec.o solver.o output.o chkopts
-	${CLINKER} -o fd3d fd3d.o h5.o mat.o vec.o gridinfo.o logging.o solver.o output.o ${PETSC_LIB}
+	${CLINKER} -o fd3d fd3d.o h5.o mat.o vec.o gridinfo.o logging.o solver.o output.o ${PETSC_LIB} ${LDFLAGS}
 ifeq (${DEBUG}, 0)
 	${RM} -rf *.dSYM
 else
