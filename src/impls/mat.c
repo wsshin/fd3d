@@ -1234,7 +1234,8 @@ PetscErrorCode createGD(Mat *GD, GridInfo gi)
 	Vec invEpsNode;
 	//ierr = create_epsNode(&invEpsNode, gi); CHKERRQ(ierr);
 	//ierr = createFieldArray(&invEpsNode, set_epsNode_at, gi); CHKERRQ(ierr);
-	ierr = createVecHDF5(&invEpsNode, "/eps_node", gi); CHKERRQ(ierr);
+	//ierr = createVecHDF5(&invEpsNode, "/eps_node", gi); CHKERRQ(ierr);
+	ierr = createVecPETSc(&invEpsNode, "eps_node", gi); CHKERRQ(ierr);
 	ierr = VecReciprocal(invEpsNode); CHKERRQ(ierr);
 	ierr = MatDiagonalScale(DivE, invEpsNode, PETSC_NULL); CHKERRQ(ierr);
 	ierr = VecDestroy(&invEpsNode); CHKERRQ(ierr);
@@ -1790,9 +1791,9 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 
 		/** Create the gradient-divergence operator. */
 		Mat GD;
-		//ierr = createGD(&GD, gi); CHKERRQ(ierr);
+		ierr = createGD(&GD, gi); CHKERRQ(ierr);
 		//ierr = createGD2(&GD, gi); CHKERRQ(ierr);
-		ierr = createGD3(&GD, gi); CHKERRQ(ierr);
+		//ierr = createGD3(&GD, gi); CHKERRQ(ierr);
 		ierr = MatDiagonalScale(GD, eps, PETSC_NULL); CHKERRQ(ierr);  // GD = eps grad[eps^-2 div()]
 		ierr = updateTimeStamp(VBDetail, ts, "GD matrix", gi); CHKERRQ(ierr);
 
