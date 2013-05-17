@@ -1794,7 +1794,12 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 		ierr = createGD(&GD, gi); CHKERRQ(ierr);
 		//ierr = createGD2(&GD, gi); CHKERRQ(ierr);
 		//ierr = createGD3(&GD, gi); CHKERRQ(ierr);
-		ierr = MatDiagonalScale(GD, eps, PETSC_NULL); CHKERRQ(ierr);  // GD = eps grad[eps^-2 div()]
+		//ierr = MatDiagonalScale(GD, eps, PETSC_NULL); CHKERRQ(ierr);  // GD = eps grad[eps^-2 div()]; only for createGD3
+/*
+ierr = VecSet(inverse, 1.0); CHKERRQ(ierr);
+ierr = VecPointwiseDivide(inverse, inverse, eps); CHKERRQ(ierr);
+ierr = MatDiagonalScale(GD, inverse, PETSC_NULL); CHKERRQ(ierr);
+*/
 		ierr = updateTimeStamp(VBDetail, ts, "GD matrix", gi); CHKERRQ(ierr);
 
 		/** Create b. */
