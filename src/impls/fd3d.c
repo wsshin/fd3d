@@ -175,8 +175,8 @@ PetscErrorCode main(int argc, char **argv)
 		ierr = VecPointwiseMult(x, x, right_precond); CHKERRQ(ierr);
 	} else {  // in this case, not preconditioning x is better
 		ierr = VecDuplicate(gi.vecTemp, &x); CHKERRQ(ierr);
-		ierr = VecSet(x, 0.0); CHKERRQ(ierr);
-		//ierr = VecSetRandom(x, PETSC_NULL); CHKERRQ(ierr);  // for random initial x
+		//ierr = VecSet(x, 0.0); CHKERRQ(ierr);
+		ierr = VecSetRandom(x, PETSC_NULL); CHKERRQ(ierr);  // for random initial x
 //		ierr = VecPointwiseDivide(x, x, right_precond); CHKERRQ(ierr);
 
 		/** For initial condition trick */
