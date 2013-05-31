@@ -1715,6 +1715,7 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 	//ierr = create_epsMask(&epsMask, gi); CHKERRQ(ierr);  // to handle TruePEC objects
 	//ierr = createFieldArray(&epsMask, set_epsMask_at, gi); CHKERRQ(ierr);  // to handle TruePEC objects
 	ierr = infMaskVec(epsMask, gi); CHKERRQ(ierr);  // to handle TruePEC objects
+	ierr = maskInf2One(eps, gi); CHKERRQ(ierr);  // to handle TruePEC objects
 	ierr = updateTimeStamp(VBDetail, ts, "eps vector", gi); CHKERRQ(ierr);
 
 

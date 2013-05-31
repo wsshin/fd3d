@@ -239,6 +239,41 @@ PetscErrorCode sqrtVec(Vec vec, GridInfo gi)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "set_maskInf2One_at"
+/**
+ * set_maskInf2One_at
+ * -------------
+ * Create a vector whose Inf elements are replaced by 1.0's
+ */
+PetscErrorCode set_maskInf2One_at(PetscScalar *value, Axis axis, const PetscInt ind[], GridInfo *gi)
+{
+	PetscFunctionBegin;
+	if (PetscIsInfOrNanScalar(*value)) {
+		*value = 1.0;
+	}
+
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "maskInf2One"
+/**
+ * maskInf2One
+ * -----------------
+ * For a given vector, replace every Inf element to 1.0. 
+ * otherwise.
+ */
+PetscErrorCode maskInf2One(Vec vec, GridInfo gi)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr; 
+
+	ierr = setFieldArray(vec, set_maskInf2One_at, gi); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "set_infMask_at"
 /**
  * set_infMask_at

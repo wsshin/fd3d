@@ -61,6 +61,14 @@ PetscErrorCode set_dparam_eps_at(PetscScalar *dparam_eps_value, Axis axis, const
 PetscErrorCode sqrtVec(Vec vec, GridInfo gi);
 
 /**
+ * maskInf2One
+ * -----------------
+ * For a given vector, replace every Inf element to 1.0. 
+ * otherwise.
+ */
+PetscErrorCode maskInf2One(Vec vec, GridInfo gi);
+
+/**
  * infMaskVec
  * -----------------
  * For a given vector, replace every element of the vector with 0.0 if the element is Inf, and 1.0 
