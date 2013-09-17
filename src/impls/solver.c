@@ -3,7 +3,7 @@
 
 #undef __FUNCT__
 #define __FUNCT__ "bicgSymmetric_kernel"
-PetscErrorCode bicgSymmetric_kernel(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, GridInfo gi, MonitorIteration monitor)
+PetscErrorCode bicgSymmetric_kernel(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi, MonitorIteration monitor)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -36,7 +36,7 @@ PetscErrorCode bicgSymmetric_kernel(const Mat A, Vec x, const Vec b, const Vec r
 	PetscInt num_iter;
 	for (num_iter = 0; (max_iter <= 0 || num_iter < max_iter) && rel_res > tol; ++num_iter) {
 		if (monitor != PETSC_NULL) {
-			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 		}
 		ierr = MatMult(A, p, Ap); CHKERRQ(ierr);  // Ap = A*p
 
@@ -69,7 +69,7 @@ PetscErrorCode bicgSymmetric_kernel(const Mat A, Vec x, const Vec b, const Vec r
 		rel_res = norm_r / norm_b;
 	}
 	if (monitor != PETSC_NULL) {
-		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 	}
 
 	ierr = VecDestroy(&r); CHKERRQ(ierr);
@@ -81,7 +81,7 @@ PetscErrorCode bicgSymmetric_kernel(const Mat A, Vec x, const Vec b, const Vec r
 
 #undef __FUNCT__
 #define __FUNCT__ "bicgSymmetric"
-PetscErrorCode bicgSymmetric(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, GridInfo gi)
+PetscErrorCode bicgSymmetric(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -90,14 +90,14 @@ PetscErrorCode bicgSymmetric(const Mat A, Vec x, const Vec b, const Vec right_pr
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "algorithm: BiCG for symmetric matrices\n"); CHKERRQ(ierr);
 	}
 
-	ierr = bicgSymmetric_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, gi, monitorAll);
+	ierr = bicgSymmetric_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, conjParam, conjSrc, gi, monitorAll);
 
 	PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "cgs_kernel"
-PetscErrorCode cgs_kernel(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, GridInfo gi, MonitorIteration monitor)
+PetscErrorCode cgs_kernel(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi, MonitorIteration monitor)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -156,7 +156,7 @@ PetscErrorCode cgs_kernel(const Mat A, Vec x, const Vec b, const Vec right_preco
 	PetscInt num_iter;
 	for (num_iter = 0; (max_iter <= 0 || num_iter < max_iter) && rel_res > tol; ++num_iter) {
 		if (monitor != PETSC_NULL) {
-			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 		}
 		gamma = 1.0/s0r;
 		ierr = VecTDot(s0, r, &s0r); CHKERRQ(ierr);
@@ -192,7 +192,7 @@ PetscErrorCode cgs_kernel(const Mat A, Vec x, const Vec b, const Vec right_preco
 		 */
 	}
 	if (monitor != PETSC_NULL) {
-		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 	}
 
 	//ierr = VecDestroy(&y); CHKERRQ(ierr);
@@ -208,7 +208,7 @@ PetscErrorCode cgs_kernel(const Mat A, Vec x, const Vec b, const Vec right_preco
 
 #undef __FUNCT__
 #define __FUNCT__ "cgs"
-PetscErrorCode cgs(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, GridInfo gi)
+PetscErrorCode cgs(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -217,14 +217,14 @@ PetscErrorCode cgs(const Mat A, Vec x, const Vec b, const Vec right_precond, con
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "algorithm: CGS for asymmetric matrices\n"); CHKERRQ(ierr);
 	}
 
-	ierr = cgs_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, gi, monitorAll);
+	ierr = cgs_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, conjParam, conjSrc, gi, monitorAll);
 
 	PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "bicg_kernel"
-PetscErrorCode bicg_kernel(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, GridInfo gi, MonitorIteration monitor)
+PetscErrorCode bicg_kernel(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi, MonitorIteration monitor)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -294,7 +294,7 @@ PetscErrorCode bicg_kernel(const Mat A, Vec x, const Vec b, const Vec right_prec
 	PetscInt num_iter;
 	for (num_iter = 0; (max_iter <= 0 || num_iter < max_iter) && rel_res > tol; ++num_iter) {
 		if (monitor != PETSC_NULL) {
-			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 		}
 		ierr = MatMult(A, p, Ap); CHKERRQ(ierr);  // Ap = A*p
 		//ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(r) = %e\n", norm_r); CHKERRQ(ierr);
@@ -340,7 +340,7 @@ PetscErrorCode bicg_kernel(const Mat A, Vec x, const Vec b, const Vec right_prec
 		 */
 	}
 	if (monitor != PETSC_NULL) {
-		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 	}
 
 	//ierr = VecDestroy(&y); CHKERRQ(ierr);
@@ -399,7 +399,7 @@ PetscErrorCode apply_Atranspose(const Mat CH, const Mat CE, const Vec mu, const 
 
 #undef __FUNCT__
 #define __FUNCT__ "bicg_component_kernel"
-PetscErrorCode bicg_component_kernel(const Mat DivE, const Mat CH, const Mat CE, const Vec mu, const Vec eps, const PetscReal omegasq, const Vec b, Vec x, GridInfo gi, TimeStamp *ts)
+PetscErrorCode bicg_component_kernel(const Mat DivE, const Mat CH, const Mat CE, const Vec mu, const Vec eps, const Vec conjSrc, const PetscReal omegasq, const Vec b, Vec x, GridInfo gi, TimeStamp *ts)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -482,7 +482,7 @@ PetscReal norm_temp;
 	PetscInt num_iter;
 	for (num_iter = 0; (max_iter <= 0 || num_iter < max_iter) && rel_res > tol; ++num_iter) {
 		if (monitor != PETSC_NULL) {
-			ierr = monitor(VBMedium, x, eps, num_iter, rel_res, CH, &gi); CHKERRQ(ierr);
+			ierr = monitor(VBMedium, x, eps, num_iter, rel_res, CE, mu, conjSrc, &gi); CHKERRQ(ierr);
 		}
 //ierr = apply_A(CH, CE, mu, eps, omegasq, x, temp); CHKERRQ(ierr);  // temp = A*x
 //ierr = VecAYPX(temp, -1.0, b); CHKERRQ(ierr);  // temp = b - A*x
@@ -537,7 +537,7 @@ PetscReal norm_temp;
 		 */
 	}
 	if (monitor != PETSC_NULL) {
-		ierr = monitor(VBCompact, x, eps, num_iter, rel_res, CH, &gi); CHKERRQ(ierr);
+		ierr = monitor(VBCompact, x, eps, num_iter, rel_res, CE, mu, conjSrc, &gi); CHKERRQ(ierr);
 	}
 
 	//ierr = VecDestroy(&y); CHKERRQ(ierr);
@@ -559,7 +559,7 @@ PetscErrorCode bicg_component(Vec x, GridInfo gi, TimeStamp *ts)
 	PetscErrorCode ierr;
 
 	/** Create component matrices and b. */
-	Vec eps, mu, b; 
+	Vec eps, mu, srcJ, srcM, conjSrc, b, bTemp; 
 	Mat DivE, CE, CH;  // curl operators on E and H
 	PetscReal omegasq = gi.omega * gi.omega;
 
@@ -576,11 +576,10 @@ PetscErrorCode bicg_component(Vec x, GridInfo gi, TimeStamp *ts)
 	//ierr = createVecHDF5(&eps, "/eps", gi); CHKERRQ(ierr);
 	ierr = createVecPETSc(&eps, "eps", gi); CHKERRQ(ierr);
 	if (gi.pml_type == UPML) {
-		Vec sparamEps;
-		//ierr = create_sparamEps(&sparamEps, gi); CHKERRQ(ierr);
-		ierr = createFieldArray(&sparamEps, set_sparam_eps_at, gi); CHKERRQ(ierr);
-		ierr = VecPointwiseMult(eps, eps, sparamEps); CHKERRQ(ierr);
-		ierr = VecDestroy(&sparamEps); CHKERRQ(ierr);
+		Vec sfactorEps;
+		ierr = createFieldArray(&sfactorEps, set_sfactor_eps_at, gi); CHKERRQ(ierr);
+		ierr = VecPointwiseMult(eps, eps, sfactorEps); CHKERRQ(ierr);
+		ierr = VecDestroy(&sfactorEps); CHKERRQ(ierr);
 	}
 	//ierr = create_epsMask(&epsMask, gi); CHKERRQ(ierr);  // to handle TruePEC objects
 	//ierr = createFieldArray(&epsMask, set_epsMask_at, gi); CHKERRQ(ierr);  // to handle TruePEC objects
@@ -598,11 +597,10 @@ PetscErrorCode bicg_component(Vec x, GridInfo gi, TimeStamp *ts)
 	}
 
 	if (gi.pml_type == UPML) {
-		Vec sparamMu;
-		//ierr = create_sparamMu(&sparamMu, gi); CHKERRQ(ierr);
-		ierr = createFieldArray(&sparamMu, set_sparam_mu_at, gi); CHKERRQ(ierr);
-		ierr = VecPointwiseMult(mu, mu, sparamMu); CHKERRQ(ierr);
-		ierr = VecDestroy(&sparamMu); CHKERRQ(ierr);
+		Vec sfactorMu;
+		ierr = createFieldArray(&sfactorMu, set_sfactor_mu_at, gi); CHKERRQ(ierr);
+		ierr = VecPointwiseMult(mu, mu, sfactorMu); CHKERRQ(ierr);
+		ierr = VecDestroy(&sfactorMu); CHKERRQ(ierr);
 	}
 	ierr = updateTimeStamp(VBDetail, ts, "mu vector", gi); CHKERRQ(ierr);
 
@@ -614,7 +612,26 @@ PetscErrorCode bicg_component(Vec x, GridInfo gi, TimeStamp *ts)
 	ierr = createCH(&CH, gi); CHKERRQ(ierr);
 	ierr = updateTimeStamp(VBDetail, ts, "CH matrix", gi); CHKERRQ(ierr);
 
-	if (gi.x_type == Htype) {
+	ierr = createVecPETSc(&srcJ, "J", gi); CHKERRQ(ierr);
+	ierr = createVecPETSc(&srcM, "M", gi); CHKERRQ(ierr);
+	ierr = VecDuplicate(gi.vecTemp, &b); CHKERRQ(ierr);
+	ierr = VecDuplicate(gi.vecTemp, &bTemp); CHKERRQ(ierr);
+	if (gi.x_type == Etype) {
+		ierr = VecCopy(srcJ, b); CHKERRQ(ierr);
+		ierr = VecScale(b, PETSC_i * gi.omega); CHKERRQ(ierr);
+		ierr = VecCopy(srcM, bTemp); CHKERRQ(ierr);
+		ierr = VecPointwiseDivide(bTemp, bTemp, mu); CHKERRQ(ierr);
+		ierr = MatMultAdd(CH, bTemp, b, b); CHKERRQ(ierr);
+		ierr = VecScale(b, -1.0); CHKERRQ(ierr);
+		conjSrc = srcM;
+	} else {
+		ierr = VecCopy(srcM, b); CHKERRQ(ierr);
+		ierr = VecScale(b, -PETSC_i * gi.omega); CHKERRQ(ierr);
+		ierr = VecCopy(srcJ, bTemp); CHKERRQ(ierr);
+		ierr = VecPointwiseDivide(bTemp, bTemp, eps); CHKERRQ(ierr);
+		ierr = MatMultAdd(CE, bTemp, b, b); CHKERRQ(ierr);
+		conjSrc = srcJ;
+
 		Mat mat_temp;
 		Vec vec_temp;
 
@@ -622,8 +639,6 @@ PetscErrorCode bicg_component(Vec x, GridInfo gi, TimeStamp *ts)
 		vec_temp = eps; eps = mu; mu = vec_temp;
 	}
 
-	ierr = createVecPETSc(&b, "J", gi); CHKERRQ(ierr);
-	ierr = VecScale(b, -PETSC_i*gi.omega); CHKERRQ(ierr);
 	ierr = updateTimeStamp(VBDetail, ts, "b vector", gi); CHKERRQ(ierr);
 
 	/** Create DivE. */
@@ -644,7 +659,7 @@ PetscErrorCode bicg_component(Vec x, GridInfo gi, TimeStamp *ts)
 	ierr = VecCopy(b, ri); CHKERRQ(ierr);
 	for (i_outer = 0; i_outer < n_outer; ++i_outer) {
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\ni_outer = %d\n", i_outer); CHKERRQ(ierr);
-		ierr = bicg_component_kernel(DivE, CH, CE, mu, eps, omegasq, ri, xi, gi, ts);
+		ierr = bicg_component_kernel(DivE, CH, CE, mu, eps, conjSrc, omegasq, ri, xi, gi, ts);
 		ierr = VecAXPY(x, 1.0, xi); CHKERRQ(ierr);
 		ierr = apply_A(CH, CE, mu, eps, omegasq, x, ri); CHKERRQ(ierr);  // r = A*x
 		ierr = VecAYPX(ri, -1.0, b); CHKERRQ(ierr);
@@ -668,7 +683,7 @@ PetscErrorCode bicg_component(Vec x, GridInfo gi, TimeStamp *ts)
 /**
  * Use Hermitian transpose rather than transpose.
  */
-PetscErrorCode bicg_kernel_H(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, GridInfo gi, MonitorIteration monitor)
+PetscErrorCode bicg_kernel_H(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi, MonitorIteration monitor)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -738,7 +753,7 @@ PetscErrorCode bicg_kernel_H(const Mat A, Vec x, const Vec b, const Vec right_pr
 	PetscInt num_iter;
 	for (num_iter = 0; (max_iter <= 0 || num_iter < max_iter) && rel_res > tol; ++num_iter) {
 		if (monitor != PETSC_NULL) {
-			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 		}
 		ierr = MatMult(A, p, Ap); CHKERRQ(ierr);  // Ap = A*p
 		//ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(r) = %e\n", norm_r); CHKERRQ(ierr);
@@ -784,7 +799,7 @@ PetscErrorCode bicg_kernel_H(const Mat A, Vec x, const Vec b, const Vec right_pr
 		 */
 	}
 	if (monitor != PETSC_NULL) {
-		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 	}
 
 	//ierr = VecDestroy(&y); CHKERRQ(ierr);
@@ -800,7 +815,7 @@ PetscErrorCode bicg_kernel_H(const Mat A, Vec x, const Vec b, const Vec right_pr
 
 #undef __FUNCT__
 #define __FUNCT__ "bicg"
-PetscErrorCode bicg(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, GridInfo gi)
+PetscErrorCode bicg(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -809,9 +824,9 @@ PetscErrorCode bicg(const Mat A, Vec x, const Vec b, const Vec right_precond, co
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "algorithm: BiCG for asymmetric matrices\n"); CHKERRQ(ierr);
 	}
 
-	//ierr = bicg_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, gi, PETSC_NULL);
-	ierr = bicg_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, gi, monitorAll);
-	//ierr = bicg_kernel_H(A, x, b, right_precond, gi.max_iter, gi.tol, HE, gi, monitorAll);
+	//ierr = bicg_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, conjParam, conjSrc, gi, PETSC_NULL);
+	ierr = bicg_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, conjParam, conjSrc, gi, monitorAll);
+	//ierr = bicg_kernel_H(A, x, b, right_precond, gi.max_iter, gi.tol, HE, conjParam, conjSrc, gi, monitorAll);
 
 	PetscFunctionReturn(0);
 }
@@ -824,7 +839,7 @@ PetscErrorCode bicg(const Mat A, Vec x, const Vec b, const Vec right_precond, co
  * squared algorithm for non-Hermitian linear systems, Proc. 1992 Copper Mountain Conf. on 
  * Iterative Methods.
  */
-PetscErrorCode qmr_kernel(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, GridInfo gi, MonitorIteration monitor)
+PetscErrorCode qmr_kernel(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi, MonitorIteration monitor)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -905,7 +920,7 @@ PetscErrorCode qmr_kernel(const Mat A, Vec x, const Vec b, const Vec right_preco
 	PetscInt num_iter;
 	for (num_iter = 0; (max_iter <= 0 || num_iter < max_iter) && rel_res > tol; ++num_iter) {
 		if (monitor != PETSC_NULL) {
-			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 		}
 		ierr = MatMult(A, p, Ap); CHKERRQ(ierr);  // Ap = A*p
 		//ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(r) = %e\n", norm_r); CHKERRQ(ierr);
@@ -969,7 +984,7 @@ PetscErrorCode qmr_kernel(const Mat A, Vec x, const Vec b, const Vec right_preco
 		 */
 	}
 	if (monitor != PETSC_NULL) {
-		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 	}
 
 	//ierr = VecDestroy(&y); CHKERRQ(ierr);
@@ -993,7 +1008,7 @@ PetscErrorCode qmr_kernel(const Mat A, Vec x, const Vec b, const Vec right_preco
  * This is the implementation of Algorithm 7.1 in Freund and Nachtigal, An implementation of the
  * QMR method based on coupled two-term recurrences, SIAM J. Sci. Comput., Vol. 15, No. 2, 1994.
  */
-PetscErrorCode qmr2_kernel(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, GridInfo gi, MonitorIteration monitor)
+PetscErrorCode qmr2_kernel(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi, MonitorIteration monitor)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -1077,7 +1092,7 @@ PetscErrorCode qmr2_kernel(const Mat A, Vec x, const Vec b, const Vec right_prec
 	PetscInt num_iter;
 	for (num_iter = 0; (max_iter <= 0 || num_iter < max_iter) && rel_res > tol; ++num_iter) {
 		if (monitor != PETSC_NULL) {
-			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 		}
 		ierr = VecTDot(s, r, &sr); CHKERRQ(ierr);  // sr = s^T * r
 
@@ -1141,7 +1156,7 @@ PetscErrorCode qmr2_kernel(const Mat A, Vec x, const Vec b, const Vec right_prec
 		 */
 	}
 	if (monitor != PETSC_NULL) {
-		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 	}
 
 	//ierr = VecDestroy(&y); CHKERRQ(ierr);
@@ -1169,7 +1184,7 @@ PetscErrorCode qmr2_kernel(const Mat A, Vec x, const Vec b, const Vec right_prec
  * W^T V is diagonal.)
  * This makes V = W for Hermitian A.
  */
-PetscErrorCode qmr3_kernel(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, GridInfo gi, MonitorIteration monitor)
+PetscErrorCode qmr3_kernel(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi, MonitorIteration monitor)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -1266,7 +1281,7 @@ PetscErrorCode qmr3_kernel(const Mat A, Vec x, const Vec b, const Vec right_prec
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\tnorm(p-q) = %e\n", norm_test); CHKERRQ(ierr);
 
 		if (monitor != PETSC_NULL) {
-			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 		}
 
 		ierr = MatMult(A, p, Ap); CHKERRQ(ierr);  // Ap = A*p
@@ -1341,7 +1356,7 @@ PetscErrorCode qmr3_kernel(const Mat A, Vec x, const Vec b, const Vec right_prec
 		 */
 	}
 	if (monitor != PETSC_NULL) {
-		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 	}
 
 	//ierr = VecDestroy(&y); CHKERRQ(ierr);
@@ -1369,7 +1384,7 @@ PetscErrorCode qmr3_kernel(const Mat A, Vec x, const Vec b, const Vec right_prec
  * W^T V is diagonal.)
  * This makes V = W for Hermitian A.  Since QMR ensures 
  */
-PetscErrorCode qmr4_kernel(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, GridInfo gi, MonitorIteration monitor)
+PetscErrorCode qmr4_kernel(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi, MonitorIteration monitor)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -1456,7 +1471,7 @@ PetscErrorCode qmr4_kernel(const Mat A, Vec x, const Vec b, const Vec right_prec
 	PetscInt num_iter;
 	for (num_iter = 0; (max_iter <= 0 || num_iter < max_iter) && rel_res > tol; ++num_iter) {
 		if (monitor != PETSC_NULL) {
-			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 		}
 		ierr = VecTDot(s, r, &sr); CHKERRQ(ierr);  // sr = s^T * r
 
@@ -1526,7 +1541,7 @@ PetscErrorCode qmr4_kernel(const Mat A, Vec x, const Vec b, const Vec right_prec
 		 */
 	}
 	if (monitor != PETSC_NULL) {
-		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 	}
 
 	//ierr = VecDestroy(&y); CHKERRQ(ierr);
@@ -1545,7 +1560,7 @@ PetscErrorCode qmr4_kernel(const Mat A, Vec x, const Vec b, const Vec right_prec
 
 #undef __FUNCT__
 #define __FUNCT__ "qmr"
-PetscErrorCode qmr(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, GridInfo gi)
+PetscErrorCode qmr(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -1554,10 +1569,10 @@ PetscErrorCode qmr(const Mat A, Vec x, const Vec b, const Vec right_precond, con
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "algorithm: QMR for asymmetric matrices\n"); CHKERRQ(ierr);
 	}
 
-	ierr = qmr_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, gi, monitorAll);
-	//ierr = qmr2_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, gi, monitorAll);
-	//ierr = qmr3_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, gi, monitorAll);
-	//ierr = qmr4_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, gi, monitorAll);
+	ierr = qmr_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, conjParam, conjSrc, gi, monitorAll);
+	//ierr = qmr2_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, conjParam, conjSrc, gi, monitorAll);
+	//ierr = qmr3_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, conjParam, conjSrc, gi, monitorAll);
+	//ierr = qmr4_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, conjParam, conjSrc, gi, monitorAll);
 
 	PetscFunctionReturn(0);
 }
@@ -1571,7 +1586,7 @@ PetscErrorCode qmr(const Mat A, Vec x, const Vec b, const Vec right_precond, con
  * squared algorithm for non-Hermitian linear systems, Proc. 1992 Copper Mountain Conf. on 
  * Iterative Methods.
  */
-PetscErrorCode qmrSymmetric_kernel(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, GridInfo gi, MonitorIteration monitor)
+PetscErrorCode qmrSymmetric_kernel(const Mat A, Vec x, const Vec b, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi, MonitorIteration monitor)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -1633,7 +1648,7 @@ PetscErrorCode qmrSymmetric_kernel(const Mat A, Vec x, const Vec b, const Vec ri
 	PetscInt num_iter;
 	for (num_iter = 0; (max_iter <= 0 || num_iter < max_iter) && rel_res > tol; ++num_iter) {
 		if (monitor != PETSC_NULL) {
-			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 		}
 		ierr = MatMult(A, p, Ap); CHKERRQ(ierr);  // Ap = A*p
 		//ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(r) = %e\n", norm_r); CHKERRQ(ierr);
@@ -1688,7 +1703,7 @@ PetscErrorCode qmrSymmetric_kernel(const Mat A, Vec x, const Vec b, const Vec ri
 		 */
 	}
 	if (monitor != PETSC_NULL) {
-		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 	}
 
 	//ierr = VecDestroy(&y); CHKERRQ(ierr);
@@ -1705,7 +1720,7 @@ PetscErrorCode qmrSymmetric_kernel(const Mat A, Vec x, const Vec b, const Vec ri
 
 #undef __FUNCT__
 #define __FUNCT__ "qmrSymmetric"
-PetscErrorCode qmrSymmetric(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, GridInfo gi)
+PetscErrorCode qmrSymmetric(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -1714,7 +1729,7 @@ PetscErrorCode qmrSymmetric(const Mat A, Vec x, const Vec b, const Vec right_pre
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "algorithm: QMR for symmetric matrices\n"); CHKERRQ(ierr);
 	}
 
-	ierr = qmrSymmetric_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, gi, monitorAll);
+	ierr = qmrSymmetric_kernel(A, x, b, right_precond, gi.max_iter, gi.tol, HE, conjParam, conjSrc, gi, monitorAll);
 
 	PetscFunctionReturn(0);
 }
@@ -1875,7 +1890,7 @@ PetscErrorCode vecNormalize(Vec x1, Vec x2, PetscReal *val)
 
 #undef __FUNCT__
 #define __FUNCT__ "cgAandAdag_kernel"
-PetscErrorCode cgAandAdag_kernel(const Mat A, const Mat Adag, Vec x1, Vec x2, const Vec b1, const Vec b2, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, GridInfo gi, MonitorIteration monitor)
+PetscErrorCode cgAandAdag_kernel(const Mat A, const Mat Adag, Vec x1, Vec x2, const Vec b1, const Vec b2, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi, MonitorIteration monitor)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -1913,7 +1928,7 @@ PetscErrorCode cgAandAdag_kernel(const Mat A, const Mat Adag, Vec x1, Vec x2, co
 	PetscInt num_iter;
 	for (num_iter = 0; (max_iter <= 0 || num_iter < max_iter) && rel_res > tol; ++num_iter) {
 		if (monitor != PETSC_NULL) {
-			ierr = monitor(VBMedium, x2, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+			ierr = monitor(VBMedium, x2, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 		}
 		ierr = multAandAdag(A, Adag, p1, p2, Bp1, Bp2); CHKERRQ(ierr);  // Bp = B*p
 
@@ -1950,7 +1965,7 @@ PetscErrorCode cgAandAdag_kernel(const Mat A, const Mat Adag, Vec x1, Vec x2, co
 
 	}
 	if (monitor != PETSC_NULL) {
-		ierr = monitor(VBCompact, x2, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+		ierr = monitor(VBCompact, x2, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 	}
 
 	ierr = VecDestroy(&r1); CHKERRQ(ierr);
@@ -1965,7 +1980,7 @@ PetscErrorCode cgAandAdag_kernel(const Mat A, const Mat Adag, Vec x1, Vec x2, co
 
 #undef __FUNCT__
 #define __FUNCT__ "cgAandAdag"
-PetscErrorCode cgAandAdag(const Mat A, const Mat Adag, Vec x1, Vec x2, const Vec b1, const Vec b2, const Vec right_precond, const Mat HE, GridInfo gi)
+PetscErrorCode cgAandAdag(const Mat A, const Mat Adag, Vec x1, Vec x2, const Vec b1, const Vec b2, const Vec right_precond, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -1974,15 +1989,15 @@ PetscErrorCode cgAandAdag(const Mat A, const Mat Adag, Vec x1, Vec x2, const Vec
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "algorithm: CG for B = [0 A; A^H; 0]\n"); CHKERRQ(ierr);
 	}
 
-	//ierr = cgAandAdag_kernel(A, Adag, x1, x2, b1, b2, right_precond, gi.max_iter, gi.tol, HE, gi, PETSC_NULL);
-	ierr = cgAandAdag_kernel(A, Adag, x1, x2, b1, b2, right_precond, gi.max_iter, gi.tol, HE, gi, monitorAll);
+	//ierr = cgAandAdag_kernel(A, Adag, x1, x2, b1, b2, right_precond, gi.max_iter, gi.tol, HE, conjParam, conjSrc, gi, PETSC_NULL);
+	ierr = cgAandAdag_kernel(A, Adag, x1, x2, b1, b2, right_precond, gi.max_iter, gi.tol, HE, conjParam, conjSrc, gi, monitorAll);
 
 	PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
 #define __FUNCT__ "bicgAandAdag_kernel"
-PetscErrorCode bicgAandAdag_kernel(const Mat A, const Mat Adag, Vec x1, Vec x2, const Vec b1, const Vec b2, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, GridInfo gi, MonitorIteration monitor)
+PetscErrorCode bicgAandAdag_kernel(const Mat A, const Mat Adag, Vec x1, Vec x2, const Vec b1, const Vec b2, const Vec right_precond, const PetscInt max_iter, const PetscReal tol, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi, MonitorIteration monitor)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -2063,7 +2078,7 @@ PetscErrorCode bicgAandAdag_kernel(const Mat A, const Mat Adag, Vec x1, Vec x2, 
 	PetscInt num_iter;
 	for (num_iter = 0; (max_iter <= 0 || num_iter < max_iter) && rel_res > tol; ++num_iter) {
 		if (monitor != PETSC_NULL) {
-			ierr = monitor(VBMedium, x1, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+			ierr = monitor(VBMedium, x1, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 		}
 		ierr = multAandAdag(A, Adag, p1, p2, Bp1, Bp2); CHKERRQ(ierr);  // Bp = B*p
 		//ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "norm(r) = %e\n", norm_r); CHKERRQ(ierr);
@@ -2114,7 +2129,7 @@ PetscErrorCode bicgAandAdag_kernel(const Mat A, const Mat Adag, Vec x1, Vec x2, 
 		 */
 	}
 	if (monitor != PETSC_NULL) {
-		ierr = monitor(VBCompact, x1, right_precond, num_iter, rel_res, HE, &gi); CHKERRQ(ierr);
+		ierr = monitor(VBCompact, x1, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 	}
 
 	//ierr = VecDestroy(&y); CHKERRQ(ierr);
@@ -2136,7 +2151,7 @@ PetscErrorCode bicgAandAdag_kernel(const Mat A, const Mat Adag, Vec x1, Vec x2, 
 
 #undef __FUNCT__
 #define __FUNCT__ "bicgAandAdag"
-PetscErrorCode bicgAandAdag(const Mat A, const Mat Adag, Vec x1, Vec x2, const Vec b1, const Vec b2, const Vec right_precond, const Mat HE, GridInfo gi)
+PetscErrorCode bicgAandAdag(const Mat A, const Mat Adag, Vec x1, Vec x2, const Vec b1, const Vec b2, const Vec right_precond, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -2145,8 +2160,8 @@ PetscErrorCode bicgAandAdag(const Mat A, const Mat Adag, Vec x1, Vec x2, const V
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "algorithm: BiCG for B = [0 A; A^H; 0]\n"); CHKERRQ(ierr);
 	}
 
-	ierr = bicgAandAdag_kernel(A, Adag, x1, x2, b1, b2, right_precond, gi.max_iter, gi.tol, HE, gi, PETSC_NULL);
-	//ierr = bicgAandAdag_kernel(A, Adag, x1, x2, b1, b2, right_precond, gi.max_iter, gi.tol, HE, gi, monitorAll);
+	ierr = bicgAandAdag_kernel(A, Adag, x1, x2, b1, b2, right_precond, gi.max_iter, gi.tol, HE, conjParam, conjSrc, gi, PETSC_NULL);
+	//ierr = bicgAandAdag_kernel(A, Adag, x1, x2, b1, b2, right_precond, gi.max_iter, gi.tol, HE, conjParam, conjSrc, gi, monitorAll);
 
 	PetscFunctionReturn(0);
 }

@@ -8,216 +8,91 @@ const char * const PCTypeName[] = {"identity", "s-factor", "eps", "Jacobi"};
 //const char * const KrylovTypeName[] = {"BiCG", "QMR"};
 
 #undef __FUNCT__
-#define __FUNCT__ "setDpOnDivF_at"
+#define __FUNCT__ "setDp"
 /**
- * setDpOnDivF_at
+ * setDp
  * ------------
- * Take the div(F) operator matrix DivF, and set up the elements for d/d(p) on it, where 
- * F = E, H, and p = x, y, z, at a given location coord[].
+ * For a matrix row indexed by (w, i, j, k), set the forward (s==Pos) or backward (s==Neg)
+ * difference of the p-component of the field in the v-direction, with extra scale multiplied.
  */
-PetscErrorCode setDpOnDivF_at(Mat DivF, FieldType ftype, Axis Pp, PetscInt i, PetscInt j, PetscInt k, GridInfo gi)
+PetscErrorCode setDp(Mat A, Sign s, Axis w, PetscInt i, PetscInt j, PetscInt k, Axis p, Axis v, PetscScalar scale, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
 
-	/** In theory DivF is an N x 3N matrix, but it is much easier to make it a 3N x 3N square
-	  matrix with the distributted array (DA) of PETSc.  To that end we leave every 2nd and 3rd rows
-	  empty. 
-	  In other words, even though div(F) is a scalar, we make it a vector quantity such that 
-	  [div(F)]x = div(F)
-	  [div(F)]y = 0
-	  [div(F)]z = 0
-	 */
+	/** Set dv. */
+	PetscInt coord[] = {i, j, k};
+	PetscInt ind = coord[v];
+	PetscScalar dv = gi.dl[v][s][ind];  // for forward (s==Pos) difference, use dl at dual grid locations
 
-	/** For general ftype and Pp, I'm going to set up (d/dp) operation of the following equation:
-	      [div(F)]x = (d/dp)Fp + (d/dq)Fq + (d/dr)Fr
-	  If ftype==Etype and Pp==Zz, this means that I'm going to set up (d/dz) operations of:
-	      [div(E)]x = (d/dx)Ex + (d/dy)Ey + (d/dz)Ez
-	  For the future notation I define a vector Gx= [div(F)]x.  Then the equation is
-	      Gx = (d/dp)Fp + (d/dq)Fq + (d/dr)Fr
-	 */
+	/** Set the row and column indices of the matrix elements to set. */
+	MatStencil indGw;  // grid point indices of Gw (mapped to row index of A)
+	MatStencil indFp[2];  // current and next grid point indices of Fp (mapped to column indices of A).  The next grid point can be either in +d or -d direction
 
-	/** For (d/dp) terms in Gx */
-	MatStencil indGx;  // grid point indices of Gx (mapped to row index of DivF)
-	MatStencil indFp[2];  // current and next grid point indices of Fp (mapped to column indices of DivF).  The next grid point can be either in +p dir or in -p dir according to ftype.
+	indGw.c = w;
+	indGw.i = i;
+	indGw.j = j;
+	indGw.k = k;
 
-	/** Determine Qq and Rr from the given Pp. */
-	Axis Qq = (Axis)((Pp+1) % Naxis);  // if Pp==Xx, this is Yy    
-	Axis Rr = (Axis)((Pp+2) % Naxis);  // if Pp==Xx, this is Zz
+	indFp[0].c = p;
+	indFp[0].i = coord[Xx];
+	indFp[0].j = coord[Yy];
+	indFp[0].k = coord[Zz];
 
-	/** Set MatStencil.c, which is the degree-of-freedom (dof) indices of PETSc.  In FD3D this is 
-	  used to indicate the direction of the field component. */
-	indGx.c = Xx; 
-	indFp[0].c = Pp; indFp[1].c = Pp;
+	if (s == Pos) {
+		++coord[v];
+	} else {
+		assert(s == Neg);
+		--coord[v];
+	}
+	indFp[1].c = p;
+	indFp[1].i = coord[Xx];
+	indFp[1].j = coord[Yy];
+	indFp[1].k = coord[Zz];
 
-	/** Set Np. */
-	PetscInt Np = gi.N[Pp];
+	/** Set Nv. */
+	PetscInt Nv = gi.N[v];
 
-	/** Set (x,y,z) indices for the current grid point. */
-	indGx.i = i; indGx.j = j; indGx.k = k;
-	indFp[0].i = i; indFp[0].j = j; indFp[0].k = k;
-
-	/** Below, I'm going to set up the indices of the next grid point, which is 
-	  either in +p direction or -p direction.  
-	  If ftype==Etype, then we are calculating div(E), and we compute the difference 
-	  between the current grid point and the next in +p direction.  
-	  If ftype==Htype, then we are calculating div(H), and we compute the difference 
-	  between the current grid point and the next in -p direction. */
-	PetscInt coord_next[] = {i, j, k};  // will be updated according to whether the next grid point is in the +p dir or -p dir
-	PetscInt p = coord_next[Pp];  // current p-coordinate, not the next
-	PetscInt q = coord_next[Qq];  // current q-coordinate, not the next
-	PetscInt r = coord_next[Rr];  // current r-coordinate, not the next
-
-	/** Below, I'm going to set the two matrix elements +1/dp and -1/dp at the locations 
-	  corresponding to the current Fp and the next.  If the next Fp is at the boundary (i.e. i==0 
-	  for ftype==Htype), ignore -1/dp because no Fp is available there. */
-	PetscScalar dp;
 	PetscScalar dFp[2];
 	PetscInt num_dFp = 2;
-	if (ftype==Htype) {
-		dp = gi.d_prim[Pp][p];
-		--coord_next[Pp];
 
-		indFp[1].i = coord_next[Xx];
-		indFp[1].j = coord_next[Yy];
-		indFp[1].k = coord_next[Zz];
-
-		/** Two matrix elements in a single row to be set at once. */
-		dFp[0] = 1.0/dp; dFp[1] = -1.0/dp;  // used for +(d/dp)Fp
-
-		/** Handle boundary conditions. */
-		if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
-			/** The tangential component of the E field on PEC is zero, and this effectively 
-			  forces the normal component of the H field zero.  Therefore, the normal component 
-			  of the H field inside PEC should be antisymmetric to that outside PEC. */
-			/** When we deal with a field component a half grid behind the boundary, we need to
-			  deal with it as if there is a symmetric or antisymmetric field behind the 
-			  boundary.  With a real PMC or PEC, all field components inside PMC or PEC are 
-			  zeros, and the surface current or charges support the field patterns in the 
-			  problem domain.  But we don't want to have extra surface currents other than the 
-			  driving source current.  Therefore we use fictitous symmetric or antisymmetric 
-			  field components instead of the surface charge or currents to support the field in 
-			  the problem domain. This way, the charge and current distribution with the 
-			  boundary remain the same as the those of the symmetric or antisymmetric field 
-			  distribution without the boundary. */
-			num_dFp = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
-			dFp[0] = 2.0/dp;
-		}
-		if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
-			/** PMC is usually used to simulate a whole structure with only a half structure when
-			  the field distribution is symmetric such that the normal component of the H field 
-			  is continuous while the tangential component of the H field is zero.  In the 
-			  current case of PMC at p==0, it simulates the continuous Hp and Hq==Hr==0.  
-			  But it doesn't mean that (d/dp)Hp = 0.  To simulate the whole structure with only a
-			  half structure, the image charge is formed on the PMC, and Hp inside PMC is 
-			  essentially zero. 
-			  But when we deal with a field component a half grid behind the boundary, we need to
-			  deal with it as if there is a symmetric or antisymmetric field behind the 
-			  boundary.  
-			  With a real PMC or PEC, all field components inside PMC or PEC are zeros, and the 
-			  surface current or charges support the field patterns in the problem domain.  But 
-			  we don't want to have extra surface currents other than the driving source 
-			  current.  Therefore we use fictitous symmetric or antisymmetric field components 
-			  instead of the surface charge or currents to support the field in the problem 
-			  domain. This way, the charge and current distribution with the boundary remain the 
-			  same as the those of the symmetric or antisymmetric field distribution without 
-			  the boundary. */
-			num_dFp = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
-			dFp[0] = 0.0;
-		}
-		if (p==0 && gi.bc[Pp][Pos]==Bloch) {  // p==0 plane
-			/** num_dFq==2, num_dFr==2 would access the array elements out of bounds, 
-			  but this is OK because MatSetValuesStencil() below supports periodic 
-			  indexing. */
-			//dFq[1] = gi.exp_neg_ikL[Pp]/Sr;
-			//dFr[1] = -gi.exp_neg_ikL[Pp]/Sq
-			PetscScalar scale = gi.exp_neg_ikL[Pp];
-			dFp[1] /= scale;
-		}
-
-		if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
-			//dFp[0] = 0.0; dFp[1] = 0.0;
-		}
-		if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
-			/** This effectively forces H components tangential to PMC zero. */
-			/** The below is mathematically the same as doing num_dFq = 0, because 
-			  num_dFq = 0 keeps matrix elements untouched, which are initially zeros.
-			  The difference is in the nonzero pattern of the matrix.  PETSc thinks 
-			  whatever elements set are nonzeros, even though we set zeros.  So if we set
-			  0.0 as matrix elements, they are actually added to the nonzero pattern of 
-			  the matrix, while they aren't in case of num_dFq = 0.  
-			  I need them added to the nonzero pattern, because otherwise when I create
-			  a matrix A = CE*INV_EPS*C_LH - w^2*mu*S/L, CE*INV_EPS*C_LH does not have 
-			  all diagonal elements in the nonzero pattern while w^2*mu*S/L does, which 
-			  prevents me from applying MatAXPY with SUBSET_NONZERO_PATTERN to subtract 
-			  w^2*mu*S/L from CE*INV_EPS*C_LH in createA() function. */
-			dFp[0] = 0.0; dFp[1] = 0.0;
-		}
-
-		if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
-			//dFp[0] = 0.0; dFp[1] = 0.0;
-		}
-		if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
-			/** This effectively forces H components tangential to PMC zero. */
-			dFp[0] = 0.0; dFp[1] = 0.0;
-		}
+	/** Two matrix elements in a single row to be set at once. */
+	if (s == Pos) {
+		dFp[0] = -scale/dv; dFp[1] = scale/dv;  // forward difference
 	} else {
-		assert(ftype==Etype);
+		dFp[0] = scale/dv; dFp[1] = -scale/dv;  // backward difference
+	}
 
-		dp = gi.d_dual[Pp][p];
-		++coord_next[Pp];
+	/** Handle boundary conditions. */
+	if (s == Pos) {  // forward difference
+		if (ind == Nv-1) {
+			if (gi.bc[v] == Bloch) {
+				dFp[1] *= gi.exp_neg_ikL[v];
+			} else {
+				dFp[1] = 0.0;
+			}
+		}
+	} else {  // backward difference
+		assert(s == Neg);
+		if (ind == 0) {
+			if ((gi.ge == Prim && gi.bc[v] == PMC) || (gi.ge == Dual && gi.bc[v] == PEC)) {
+				dFp[0] *= 2.0;
+			}
 
-		indFp[1].i = coord_next[Xx];
-		indFp[1].j = coord_next[Yy];
-		indFp[1].k = coord_next[Zz];
-
-		/** Two matrix elements in a single row to be set at once. */
-		dFp[0] = -1.0/dp; dFp[1] = 1.0/dp;  // used for +(d/dp)Fp
-
-		/** Handle boundary conditions. */
-		if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
-		}
-		if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
-			/** The tangential component of the H field on PMC is zero, and this effectively 
-			  forces the normal component of the E field zero. */
-			dFp[0] = 0.0;
-		}
-		if (p==Np-1 && gi.bc[Pp][Pos]==Bloch) {  // p==0 plane
-			/** num_dFq==2, num_dFr==2 would access the array elements out of bounds, 
-			  but this is OK because MatSetValuesStencil() below supports periodic 
-			  indexing. */
-			//dFq[1] = gi.exp_neg_ikL[Pp]/Sr;
-			//dFr[1] = -gi.exp_neg_ikL[Pp]/Sq
-			PetscScalar scale = gi.exp_neg_ikL[Pp];
-			dFp[1] *= scale;
-		}
-		if (p==Np-1 && gi.bc[Pp][Pos]!=Bloch) {  // p==0 plane
-			/** num_dFq==2, num_dFr==2 would access the array elements out of bounds. */
-			/** bc[Pp][Pos]==PMC, so the normal component of the E-field is zero. */
-			num_dFp = 1;
-		}
-
-		if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
-			//dFp[0] = 0.0; dFp[1] = 0.0;
-		}
-		if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
-		}
-
-		if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
-			//dFp[0] = 0.0; dFp[1] = 0.0;
-		}
-		if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
+			if (gi.bc[v] == Bloch) {
+				dFp[1] /= gi.exp_neg_ikL[v];
+			} else {
+				dFp[1] = 0.0;
+			}
 		}
 	}
 
 	/** Below, ADD_VALUES is used instead of INSERT_VALUES to deal with cases of 
-	  gi.bc[Pp][Neg]==gi.bc[Pp][Pos]==Bloch and Np==1.  In such a case, p==0 and 
-	  p==Np-1 coincide, so inserting dFq[1] after dFq[0] overwrites dFq[0], which is
-	  not what we want.  On the other hand, if we add dFq[1] to dFq[0], it is 
-	  equivalent to insert -1.0/dp + 1.0/dp = 0.0, and this is what should be done
-	  because when Np==1, the E fields at p==0 and p==1(==Np) are the same, and the 
-	  line integrals on p==0 and p==1 cancel one another. */
-	ierr = MatSetValuesStencil(DivF, 1, &indGx, num_dFp, indFp, dFp, ADD_VALUES); CHKERRQ(ierr);  // Gx =  (d/dp)Fp + (d/dq)Fq + (d/dr)Fr
+	  gi.bc[Pp]==gi.bc[Pp]==Bloch and Nv==1.  In such a case, v==0 and v==Nv-1 coincide, 
+	  so inserting dFp[1] after dFp[0] overwrites dFp[0], which is not what we want.  
+	  On the other hand, if we add dFp[1] to dFp[0], it is equivalent to insert 
+	  -scale/dv + scale/dv = 0.0, and this is what should be done. */
+	ierr = MatSetValuesStencil(A, 1, &indGw, num_dFp, indFp, dFp, ADD_VALUES); CHKERRQ(ierr);  // Gw <-- scale * (d/dv)Fp
 
 	PetscFunctionReturn(0);
 }
@@ -230,10 +105,12 @@ PetscErrorCode setDpOnDivF_at(Mat DivF, FieldType ftype, Axis Pp, PetscInt i, Pe
  * Set up the div(F) operator matrix DivF.  
  * DivF is an N x 3N matrix expanded to 3N x 3N.
  */
-PetscErrorCode setDivF(Mat DivF, FieldType ftype, GridInfo gi)
+PetscErrorCode setDivF(Mat DivF, GridType gtype, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
+
+	Sign s = (Sign) gtype;  // Neg for gtype==Prim, Pos for gtype==Dual
 
 	/** Get corners and widths of Yee's grid included in this proces. */
 	PetscInt ox, oy, oz;  // coordinates of beginning corner of Yee's grid in this process
@@ -245,7 +122,16 @@ PetscErrorCode setDivF(Mat DivF, FieldType ftype, GridInfo gi)
 		for (j = oy; j < oy+ny; ++j) {
 			for (i = ox; i < ox+nx; ++i) {
 				for (axis = 0; axis < Naxis; ++axis) {
-					ierr = setDpOnDivF_at(DivF, ftype, (Axis)axis, i, j, k, gi);
+					/** In theory DivF is an N x 3N matrix, but it is much easier to make it a 
+					  3N x 3N square matrix with the distributted array (DA) of PETSc.  To that end 
+					  we leave every 2nd and 3rd rows empty.  In other words, even though div(F) is 
+					  a scalar, we make it a vector quantity such that 
+					  [div(F)]x = div(F)
+					  [div(F)]y = 0
+					  [div(F)]z = 0
+					 */
+					Axis w = (Axis) axis;
+					ierr = setDp(DivF, s, Xx, i, j, k, w, w, 1.0, gi); CHKERRQ(ierr);
 				}
 			}
 		}
@@ -266,6 +152,13 @@ PetscErrorCode createDivE(Mat *DivE, GridInfo gi)
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
 
+	Vec maskE;
+	if (gi.ge == Prim) {
+		ierr = createFieldArray(&maskE, set_mask_prim_at, gi);
+	} else {
+		ierr = createFieldArray(&maskE, set_mask_dual_at, gi);
+	}
+
 	ierr = MatCreate(PETSC_COMM_WORLD, DivE); CHKERRQ(ierr);
 	ierr = MatSetSizes(*DivE, gi.Nlocal_tot, gi.Nlocal_tot, PETSC_DETERMINE, PETSC_DETERMINE); CHKERRQ(ierr);
 	ierr = MatSetType(*DivE, MATRIX_TYPE); CHKERRQ(ierr);
@@ -274,192 +167,47 @@ PetscErrorCode createDivE(Mat *DivE, GridInfo gi)
 	ierr = MatSeqAIJSetPreallocation(*DivE, 6, PETSC_NULL); CHKERRQ(ierr);
 	ierr = MatSetLocalToGlobalMapping(*DivE, gi.map, gi.map); CHKERRQ(ierr);
 	ierr = MatSetStencil(*DivE, Naxis, gi.Nlocal_g, gi.start_g, Naxis); CHKERRQ(ierr);
-	ierr = setDivF(*DivE, Etype, gi); CHKERRQ(ierr);
+	ierr = setDivF(*DivE, gi.ge, gi); CHKERRQ(ierr);
 	ierr = MatAssemblyBegin(*DivE, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 	ierr = MatAssemblyEnd(*DivE, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+
+	ierr = MatDiagonalScale(*DivE, PETSC_NULL, maskE); CHKERRQ(ierr);
 
 	PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "setDpOnFGrad_at"
+#define __FUNCT__ "createDivH"
 /**
- * setDpOnFGrad_at
- * ------------
- * Take the F = grad(phi) operator matrix FGrad, and set up the elements for d/d(p) on it, where 
- * F = E, H, and p = x, y, z, at a given location coord[].
+ * createDivH
+ * --------
+ * Create the matrix DivH, the divergence operator on H fields.
  */
-PetscErrorCode setDpOnFGrad_at(Mat FGrad, FieldType ftype, Axis Pp, PetscInt i, PetscInt j, PetscInt k, GridInfo gi)
+PetscErrorCode createDivH(Mat *DivH, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
 
-	/** In theory FGrad is a 3N x N matrix, but it is much easier to make it a 3N x 3N square
-	  matrix with the distributted array (DA) of PETSc.  To that end we leave every 2nd and 3rd 
-	  columns of FGrad empty.  This is also consistent with the operator composition such as 
-	  EGrad * DivE for grad(div(E)), because DivE is constructed so that every 2nd and 3rd rows are 
-	  empty.  
-	  In other words, even though phi in F = grad(phi) is a scalar, we take a vector G such that 
-	  Gx = phi
-	  Gy = 0
-	  Gz = 0
-	 */
-
-	/** Below, I'm going to set up (d/dz) operations of the following equation:
-	  (for ftype==Etype, Pp==Zz):
-	  Ez = (d/dz)phi
-	  In general, I'm going to set up (d/dp) operation of the following:
-	  Fp = (d/dp)Gx
-	 */
-
-	/** Indices for Fp */
-	MatStencil indFp;  // grid point indices of Fp (mapped to row index of FGrad)
-	MatStencil indGx[2];  // current and next grid point indices of Gx (mapped to column indices of FGrad).  The next grid point can be either in +p dir or in -p dir according to ftype.
-
-	/** Determine Qq and Rr from the given Pp. */
-	Axis Qq = (Axis)((Pp+1) % Naxis);  // if Pp==Xx, this is Yy    
-	Axis Rr = (Axis)((Pp+2) % Naxis);  // if Pp==Xx, this is Zz
-
-	/** Set MatStencil.c, which is the degree-of-freedom (dof) indices of PETSc.  In FD3D this is 
-	  used to indicate the direction of the field component. */
-	indFp.c = Pp;
-	indGx[0].c = Xx; indGx[1].c = Xx; 
-
-	/** Set Np. */
-	PetscInt Np = gi.N[Pp];
-
-	/** Set (x,y,z) indices for the current grid point. */
-	indFp.i = i; indFp.j = j; indFp.k = k;
-	indGx[0].i = i; indGx[0].j = j; indGx[0].k = k;
-	indGx[1].i = i; indGx[1].j = j; indGx[1].k = k;
-
-	/** Below, I'm going to set up the indices of the next grid point, which is 
-	  either in +p direction or -p direction.  
-	  If ftype==Htype, then we are calculating E = grad(phi) where phi is defined at the lower left
-	  front node of Yee's cell.  So we compute the difference between phi at the current grid point 
-	  and the next in +p direction.  
-	  If ftype==Etype, then we are calculating H = grad(phi) where phi is defined at the center of 
-	  Yee's cell.  So we compute the difference between the current grid point and the next in -p 
-	  direction. */
-	PetscInt coord_next[] = {i, j, k};  // will be updated according to whether the next grid point is in the +p dir or -p dir
-	PetscInt p = coord_next[Pp];  // current p-coordinate, not the next
-	PetscInt q = coord_next[Qq];  // current q-coordinate, not the next
-	PetscInt r = coord_next[Rr];  // current r-coordinate, not the next
-
-	/** Below, I'm going to set the two matrix elements -1/dp and +1/dp at the locations 
-	  corresponding to the current Fp and the next.  If the next Fp is at the boundary (i.e. i+1==Nx 
-	  for ftype==Htype), ignore +1/dp because no Fp is available there. */
-	PetscScalar dp;
-	PetscScalar dGx[2];
-	PetscInt num_dGx = 2;
-	if (ftype==Htype) {
-		dp = gi.d_dual[Pp][p];
-		++coord_next[Pp];
-
-		indGx[1].i = coord_next[Xx];
-		indGx[1].j = coord_next[Yy];
-		indGx[1].k = coord_next[Zz];
-
-		/** Two matrix elements in a single row to be set at once. */
-		dGx[0] = -1.0/dp; dGx[1] = 1.0/dp;  // used for +(d/dp)Fp
-
-		/** Handle boundary conditions. */
-		if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
-		}
-		if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
-		}
-		if (p==Np-1 && gi.bc[Pp][Pos]==PMC) {  // p==Np plane
-			/** Assume that phi on PMC is zero, which is the case when phi = div(esp E). */
-			num_dGx = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
-		}
-		if (p==Np-1 && gi.bc[Pp][Pos]==Bloch) {  // p==Np plane
-			/** num_dGx==2, num_dGx==2 would access the array elements out of bounds, 
-			  but this is OK because MatSetValuesStencil() below supports periodic 
-			  indexing. */
-			//dFq[1] = gi.exp_neg_ikL[Pp]/Sr;
-			//dFr[1] = -gi.exp_neg_ikL[Pp]/Sq
-			PetscScalar scale = gi.exp_neg_ikL[Pp];
-			dGx[1] *= scale;
-		}
-
-		if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
-		}
-		if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
-		}
-
-		if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
-		}
-		if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
-		}
-		/*
-		   if (indGx[0].i==0 || indGx[0].j==0 || indGx[0].k==0) {
-		   dGx[0] = 0.0;
-		   }
-		   if (indGx[1].i==0 || indGx[1].j==0 || indGx[1].k==0) {
-		   dGx[1] = 0.0;
-		   }
-		 */
+	Vec maskH;
+	if (gi.ge == Prim) {
+		ierr = createFieldArray(&maskH, set_mask_dual_at, gi);
 	} else {
-		assert(ftype==Etype);
-
-		dp = gi.d_prim[Pp][p];
-		--coord_next[Pp];
-
-		indGx[1].i = coord_next[Xx];
-		indGx[1].j = coord_next[Yy];
-		indGx[1].k = coord_next[Zz];
-
-		/** Two matrix elements in a single row to be set at once. */
-		dGx[0] = 1.0/dp; dGx[1] = -1.0/dp;  // used for +(d/dp)Fp
-
-		/** Handle boundary conditions. */
-		if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
-			/** The divergences at symmetric points are the same, which makes the gradient along 
-			the surface normal direction zero. */
-			dGx[0] = 0.0; dGx[1] = 0.0;
-		}
-		if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
-			/** The divergences at symmetric points are the same, which makes the gradient along 
-			the surface normal direction zero. */
-			dGx[0] = 0.0; dGx[1] = 0.0;
-		}
-		if (p==0 && gi.bc[Pp][Pos]==Bloch) {  // p==Np plane
-			/** num_dGx==2, num_dGx==2 would access the array elements out of bounds, 
-			  but this is OK because MatSetValuesStencil() below supports periodic 
-			  indexing. */
-			//dFq[1] = gi.exp_neg_ikL[Pp]/Sr;
-			//dFr[1] = -gi.exp_neg_ikL[Pp]/Sq
-			PetscScalar scale = gi.exp_neg_ikL[Pp];
-			dGx[1] /= scale;
-		}
-
-		if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
-		}
-		if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
-		}
-
-		if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
-		}
-		if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
-		}
-		/*
-		   if (indGx[0].i==0 || indGx[0].j==0 || indGx[0].k==0) {
-		   dGx[0] = 0.0;
-		   }
-		   if (indGx[1].i==0 || indGx[1].j==0 || indGx[1].k==0) {
-		   dGx[1] = 0.0;
-		   }
-		 */
+		ierr = createFieldArray(&maskH, set_mask_prim_at, gi);
 	}
 
-	/** Below, ADD_VALUES is used instead of INSERT_VALUES to deal with cases of 
-	  gi.bc[Pp][Neg]==gi.bc[Pp][Pos]==Bloch and Np==1.  In such a case, p==0 and 
-	  p==Np-1 coincide, so inserting dFq[1] after dFq[0] overwrites dFq[0], which is
-	  not what we want.  On the other hand, if we add dFq[1] to dFq[0], it is 
-	  equivalent to insert -1.0/dp + 1.0/dp = 0.0, and this is what should be done
-	  because when Np==1, the E fields at p==0 and p==1(==Np) are the same, and the 
-	  line integrals on p==0 and p==1 cancel one another. */
-	ierr = MatSetValuesStencil(FGrad, 1, &indFp, num_dGx, indGx, dGx, ADD_VALUES); CHKERRQ(ierr);  // Gx =  (d/dp)Fp + (d/dq)Fq + (d/dr)Fr
+	ierr = MatCreate(PETSC_COMM_WORLD, DivH); CHKERRQ(ierr);
+	ierr = MatSetSizes(*DivH, gi.Nlocal_tot, gi.Nlocal_tot, PETSC_DETERMINE, PETSC_DETERMINE); CHKERRQ(ierr);
+	ierr = MatSetType(*DivH, MATRIX_TYPE); CHKERRQ(ierr);
+	ierr = MatSetFromOptions(*DivH);
+	ierr = MatMPIAIJSetPreallocation(*DivH, 6, PETSC_NULL, 3, PETSC_NULL); CHKERRQ(ierr);
+	ierr = MatSeqAIJSetPreallocation(*DivH, 6, PETSC_NULL); CHKERRQ(ierr);
+	ierr = MatSetLocalToGlobalMapping(*DivH, gi.map, gi.map); CHKERRQ(ierr);
+	ierr = MatSetStencil(*DivH, Naxis, gi.Nlocal_g, gi.start_g, Naxis); CHKERRQ(ierr);
+	ierr = setDivF(*DivH, (GridType)((gi.ge+1) % Ngt), gi); CHKERRQ(ierr);
+	ierr = MatAssemblyBegin(*DivH, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+	ierr = MatAssemblyEnd(*DivH, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+
+	ierr = MatDiagonalScale(*DivH, PETSC_NULL, maskH); CHKERRQ(ierr);
 
 	PetscFunctionReturn(0);
 }
@@ -472,10 +220,12 @@ PetscErrorCode setDpOnFGrad_at(Mat FGrad, FieldType ftype, Axis Pp, PetscInt i, 
  * Set up the F = grad(phi) operator matrix FGrad.  
  * FGrad is a 3N x N matrix expanded to 3N x 3N.
  */
-PetscErrorCode setFGrad(Mat FGrad, FieldType ftype, GridInfo gi)
+PetscErrorCode setFGrad(Mat FGrad, GridType gtype, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
+
+	Sign s = (Sign)((gtype+1) % Ngt);  // Pos for gtype==Prim, Neg for gtype==Dual
 
 	/** Get corners and widths of Yee's grid included in this proces. */
 	PetscInt ox, oy, oz;  // coordinates of beginning corner of Yee's grid in this process
@@ -487,7 +237,18 @@ PetscErrorCode setFGrad(Mat FGrad, FieldType ftype, GridInfo gi)
 		for (j = oy; j < oy+ny; ++j) {
 			for (i = ox; i < ox+nx; ++i) {
 				for (axis = 0; axis < Naxis; ++axis) {
-					ierr = setDpOnFGrad_at(FGrad, ftype, (Axis)axis, i, j, k, gi);
+					/** In theory FGrad is a 3N x N matrix, but it is much easier to make it a 
+					  3N x 3N square matrix with the distributted array (DA) of PETSc.  To that end 
+					  we leave every 2nd and 3rd columns of FGrad empty.  This is also consistent 
+					  with the operator composition such as EGrad * DivE for grad(div(E)), because 
+					  DivE is constructed so that every 2nd and 3rd rows are empty.  In other words, 
+					  even though phi in F = grad(phi) is a scalar, we take a vector G such that 
+					  Gx = phi
+					  Gy = 0
+					  Gz = 0
+					 */
+					Axis w = (Axis) axis;
+					ierr = setDp(FGrad, s, w, i, j, k, Xx, w, 1.0, gi); CHKERRQ(ierr);
 				}
 			}
 		}
@@ -508,6 +269,13 @@ PetscErrorCode createEGrad(Mat *EGrad, GridInfo gi)
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
 
+	Vec maskE;
+	if (gi.ge == Prim) {
+		ierr = createFieldArray(&maskE, set_mask_prim_at, gi);
+	} else {
+		ierr = createFieldArray(&maskE, set_mask_dual_at, gi);
+	}
+
 	ierr = MatCreate(PETSC_COMM_WORLD, EGrad); CHKERRQ(ierr);
 	ierr = MatSetSizes(*EGrad, gi.Nlocal_tot, gi.Nlocal_tot, PETSC_DETERMINE, PETSC_DETERMINE); CHKERRQ(ierr);
 	ierr = MatSetType(*EGrad, MATRIX_TYPE); CHKERRQ(ierr);
@@ -516,306 +284,47 @@ PetscErrorCode createEGrad(Mat *EGrad, GridInfo gi)
 	ierr = MatSeqAIJSetPreallocation(*EGrad, 2, PETSC_NULL); CHKERRQ(ierr);
 	ierr = MatSetLocalToGlobalMapping(*EGrad, gi.map, gi.map); CHKERRQ(ierr);
 	ierr = MatSetStencil(*EGrad, Naxis, gi.Nlocal_g, gi.start_g, Naxis); CHKERRQ(ierr);
-	ierr = setFGrad(*EGrad, Etype, gi); CHKERRQ(ierr);
+	ierr = setFGrad(*EGrad, gi.ge, gi); CHKERRQ(ierr);
 	ierr = MatAssemblyBegin(*EGrad, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 	ierr = MatAssemblyEnd(*EGrad, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+
+    ierr = MatDiagonalScale(*EGrad, maskE, PETSC_NULL); CHKERRQ(ierr);
 
 	PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "setDpOnCF_at"
+#define __FUNCT__ "createHGrad"
 /**
- * setDpOnCF_at
- * ------------
- * Take the curl(F) operator matrix CF for given F == E or H, and set up the elements
- * for d/d(p) on it, where p = x, y, z, at a given location coord[].
+ * createHGrad
+ * --------
+ * Create the matrix HGrad, the gradient operator generating H fields.
  */
-PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscInt j, PetscInt k, GridInfo gi)
+PetscErrorCode createHGrad(Mat *HGrad, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
 
-	/** Notation: 
-	    F: field to differentiate.  Either E or H.  Given by ftype.
-	    G: if F==E, then G==H, and if F==H, then G==E.
-	    (p,q,r): cyclic permutation of (x,y,z)
-	    (Pp,Qq,Rr): cyclic permutation of (Xx,Yy,Zz)
-	  Therefore, if Gq==Hy, then Fp==Ex and dr==dx, and so on. */
-
-	/** For general ftype and Pp, I'm going to set up (d/dp) operations of:
-	      -i w mu Gr = [curl(F)]r = (d/dp)Fq - (d/dq)Fp
-	      -i w mu Gq = [curl(F)]q = (d/dr)Fp - (d/dp)Fr
-	  if (F,G)==(E,H), or 
-	      i w eps Gr = [curl(F)]r = (d/dp)Fq - (d/dq)Fp
-	      i w eps Gq = [curl(F)]q = (d/dr)Fp - (d/dp)Fr
-	  if (F,G)==(H,E).  (p,q,r) is a cyclic permutation of (x,y,z). 
-	  If ftype==Etype and Pp==Xx, this means that I'm going to set up (d/dx) operations of the 
-	  following two equations:
-	      -i w mu Hz = [curl(E)]z = (d/dx)Ey - (d/dy)Ex 
-	      -i w mu Hy = [curl(E)]y = (d/dz)Ex - (d/dx)Ez 
-	  In both (F,G)==(E,H) and (H,E) cases, we set up [curl(F)]r matrix elements for Gr, 
-	  or [curl(F)]q matrix elements for Gq.  I will denote these as 
-	      Gr <-- [curl(F)]r
-	      Gq <-- [curl(F)]q
-	 */
-
-	/** For (d/dp) term in Gr <-- [curl(F)]r */
-	MatStencil indGr;  // grid point indices of Gr (mapped to row index of CF)
-	MatStencil indFq[2];  // current and next grid point indices of Fq (mapped to column indices of CF).  The next grid point can be either in +p dir or in -p dir.
-
-	/** For (d/dp) term in Gq <-- [curl(F)]q */
-	MatStencil indGq;  // grid point indices of Gq (mapped to row index of CF)
-	MatStencil indFr[2];  // current and next grid point indices of Fr (mapped to column indices of CF).  The next grid point can be either in +p dir or in -p dir.
-
-	/** Determine Qq and Rr from the given Pp. */
-	Axis Qq = (Axis)((Pp+1) % Naxis);  // if Pp==Xx, this is Yy
-	Axis Rr = (Axis)((Pp+2) % Naxis);  // if Pp==Xx, this is Zz
-
-	/** Set MatStencil.c, which is the degree-of-freedom (dof) indices of PETSc.  In FD3D this is 
-	  used to indicate the direction of the field component. */
-	indGr.c = Rr; indFq[0].c = Qq; indFq[1].c = Qq;
-	indGq.c = Qq; indFr[0].c = Rr; indFr[1].c = Rr;
-
-	/** Set Np. */
-	PetscInt Np = gi.N[Pp];
-
-	/** Set (x,y,z) indices for the current grid point. */
-	indGr.i = i; indGr.j = j; indGr.k = k;
-	indFq[0].i = i; indFq[0].j = j; indFq[0].k = k;
-
-	indGq.i = i; indGq.j = j; indGq.k = k;
-	indFr[0].i = i; indFr[0].j =j; indFr[0].k = k;
-
-	/** Below, I'm going to set up the indices of the next grid point, which is 
-	  either in +p direction or -p direction.  
-	  If ftype==Htype, then we are calculating curl[E], and we compute the difference 
-	  between the current grid point and the next in +p direction.  
-	  If ftype==Etype, then we are calculating curl[H], and we compute the difference 
-	  between the current grid point and the next in -p direction. */
-	PetscInt coord_next[] = {i, j, k};  // will be updated according to whether the next grid point is in the +p dir or -p dir
-	PetscInt p = coord_next[Pp];  // current p-coordinate, not the next
-	PetscInt q = coord_next[Qq];  // current q-coordinate, not the next
-	PetscInt r = coord_next[Rr];  // current r-coordinate, not the next
-
-	/** Below, I'm going to set the two matrix elements -1/dp and +1/dp at the 
-	  locations corresponding to the current Fr (or Fq) and the next.  If the next Fr 
-	  (or Fq) is at the boundary (i.e. i+1==Nx for ftype==Htype, Pp==Xx), ignore +1/dp
-	  because no Fr (or Fq) is available there. */
-	PetscScalar dp;
-	PetscScalar dFq[2];
-	PetscScalar dFr[2];
-	PetscInt num_dFq = 2;
-	PetscInt num_dFr = 2;
-	if (ftype==Htype) {
-		//PetscScalar Sr = gi.d_prim[Pp][p] * gi.d_prim[Qq][q];
-		//PetscScalar Sq = gi.d_prim[Rr][r] * gi.d_prim[Pp][p];
-		dp = gi.d_dual[Pp][p];
-		++coord_next[Pp];
-
-		indFr[1].i = coord_next[Xx]; 
-		indFr[1].j = coord_next[Yy]; 
-		indFr[1].k = coord_next[Zz];
-
-		indFq[1].i = coord_next[Xx]; 
-		indFq[1].j = coord_next[Yy]; 
-		indFq[1].k = coord_next[Zz];
-
-		/** Two matrix elements in a single row to be set at once. */
-		//PetscScalar dFq[] = {-1.0/Sr, 1.0/Sr};  // used for +(d/dp)Fq = +(Lq Fq)/Sr
-		//PetscScalar dFr[] = {1.0/Sq, -1.0/Sq};  // used for -(d/dp)Fr = -(Lr Fr)/Sq
-		/** Here, we cannot just use dFq[] = {-1.0, 1.0} and dFr[] = {1.0, -1.0} and multiply some
-		  diagonal matrix later to CE.  dFq and dFr are divided by dp evendually, which means that 
-		  two different elements of a vector supplied to CE should be scaled by the same amount. This
-		  is equivalent to scaling one element of the vector should scaled by different values 
-		  depending on matrix elements. (This is also obvious on the nonuniform Yee's grid.) However, 	   multiplying a diagonal matrix to CE is equivalent to scaling a vector supplied to CE 
-		  elementwise, which scale each vector element by a unique amount. */
-		dFq[0] = -1.0/dp; dFq[1] = 1.0/dp;  // used for +(d/dp)Fq
-		dFr[0] = 1.0/dp; dFr[1] = -1.0/dp;  // used for -(d/dp)Fr
-
-		/** Handle boundary conditions. */
-		if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
-			/*
-			   dFq[0] = -2.0/Sr; dFr[0] = 2.0/Sq; 
-			   num_dFq = 1; num_dFr = 1;
-			 */
-			/*
-			   dFq[0] = -1.0/(3.0*Sr); dFq[1] = 1.0/(3.0*Sr);
-			   dFr[0] = -1.0/(3.0*Sq); dFr[1] = 1.0/(3.0*Sq);
-
-			   indFr[0].i = coord_next[Xx]; 
-			   indFr[0].j = coord_next[Yy]; 
-			   indFr[0].k = coord_next[Zz];
-
-			   indFq[0].i = coord_next[Xx]; 
-			   indFq[0].j = coord_next[Yy]; 
-			   indFq[0].k = coord_next[Zz];
-
-			   ++coord_next[Pp];
-
-			   indFr[1].i = coord_next[Xx]; 
-			   indFr[1].j = coord_next[Yy]; 
-			   indFr[1].k = coord_next[Zz];
-
-			   indFq[1].i = coord_next[Xx]; 
-			   indFq[1].j = coord_next[Yy]; 
-			   indFq[1].k = coord_next[Zz];
-			 */
-		}
-		if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
-			/** This effectively forces H components tangential to PMC zero. */
-			dFq[0] = 0.0; 
-			dFr[0] = 0.0;
-		}
-		if (p==Np-1 && gi.bc[Pp][Pos]==Bloch) {  // p==Np plane
-			/** num_dFq==2, num_dFr==2 would access the array elements out of bounds, 
-			  but this is OK because MatSetValuesStencil() below supports periodic 
-			  indexing. */
-			//dFq[1] = gi.exp_neg_ikL[Pp]/Sr;
-			//dFr[1] = -gi.exp_neg_ikL[Pp]/Sq
-			PetscScalar scale = gi.exp_neg_ikL[Pp];
-			dFq[1] *= scale;
-			dFr[1] *= scale;
-		}
-		if (p==Np-1 && gi.bc[Pp][Pos]!=Bloch) {  // p==Np plane
-			/** num_dFq==2, num_dFr==2 would access the array elements out of bounds. */ 
-			num_dFq = 1;
-			num_dFr = 1;
-		}
-
-		if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
-			//dFr[0] = 0.0; dFr[1] = 0.0;
-		}
-		if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
-			/** This effectively forces H components tangential to PMC zero. */
-			/** The below is mathematically the same as doing num_dFq = 0, because 
-			  num_dFq = 0 keeps matrix elements untouched, which are initially zeros.
-			  The difference is in the nonzero pattern of the matrix.  PETSc thinks 
-			  whatever elements set are nonzeros, even though we set zeros.  So if we set
-			  0.0 as matrix elements, they are actually added to the nonzero pattern of 
-			  the matrix, while they aren't in case of num_dFq = 0.  
-			  I need them added to the nonzero pattern, because otherwise when I create
-			  a matrix A = CE*INV_EPS*C_LH - w^2*mu*S/L, CE*INV_EPS*C_LH does not have 
-			  all diagonal elements in the nonzero pattern while w^2*mu*S/L does, which 
-			  prevents me from applying MatAXPY with SUBSET_NONZERO_PATTERN to subtract 
-			  w^2*mu*S/L from CE*INV_EPS*C_LH in createA() function. */
-			dFr[0] = 0.0; dFr[1] = 0.0;
-		}
-
-		if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
-			//dFq[0] = 0.0; dFq[1] = 0.0;
-		}
-		if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
-			/** This effectively forces H components tangential to PMC zero. */
-			dFq[0] = 0.0; dFq[1] = 0.0;
-		}
+	Vec maskH;
+	if (gi.ge == Prim) {
+		ierr = createFieldArray(&maskH, set_mask_dual_at, gi);
 	} else {
-		assert(ftype==Etype);
-		//PetscScalar dq = gi.d_dual[Qq][q];
-		//PetscScalar dr = gi.d_dual[Rr][r];
-		dp = gi.d_prim[Pp][p];
-		--coord_next[Pp];  // It measn coord_next[Pp] is actually the "previous" coordinate in +p direction.
-
-		indFr[1].i = coord_next[Xx]; 
-		indFr[1].j = coord_next[Yy]; 
-		indFr[1].k = coord_next[Zz];
-
-		indFq[1].i = coord_next[Xx]; 
-		indFq[1].j = coord_next[Yy]; 
-		indFq[1].k = coord_next[Zz];
-
-		/** Two matrix elements in a single row to be set at once.  Note the sign 
-		  differences from ftype==Htype case, we have done --coord_next[Pp] instead of
-		  ++coord_next[Pp]. */
-		//PetscScalar dFq[] = {dq, -dq};  // used for +(d/dp)Fq = +(Lq Fq)/Sr -> Gr
-		//PetscScalar dFr[] = {-dr, dr};  // used for -(d/dp)Fr = -(Lr Fr)/Sq -> Gq
-		/** Here, we cannot just use dFq[] = {-1.0, 1.0} and dFr[] = {1.0, -1.0} and multiply some
-		  diagonal matrix later to CE.  dFq and dFr are divided by dp evendually, which means that 
-		  two different elements of a vector supplied to CE should be scaled by the same amount. This
-		  is equivalent to scaling one element of the vector should scaled by different values 
-		  depending on matrix elements. (This is also obvious on the nonuniform Yee's grid.) However, 	   multiplying a diagonal matrix to CE is equivalent to scaling a vector supplied to CE 
-		  elementwise, which scale each vector element by a unique amount. */
-		dFq[0] = 1.0/dp; dFq[1] = -1.0/dp;  // used for +(d/dp)Fq
-		dFr[0] = -1.0/dp; dFr[1] = 1.0/dp;  // used for -(d/dp)Fr
-
-		/** Handle boundary conditions. */
-		if (p==0 && gi.bc[Pp][Neg]==PEC) {  // p==0 plane
-			/** PEC is usually used to simulate a whole structure with only a half structure 
-			  when the field distribution is symmetric such that the normal component of the E 
-			  field is continuous and the tangential component of the E field is zero.  In the 
-			  current case of PEC at p==0, it simulates the continuous Ep and Eq==Er==0, which 
-			  leads to the antisymmetric distribution of Eq and Er around p==0 plane.  Then it 
-			  seems like (d/dp)Eq = (2.0/dp)*Eq and (d/dp)Er = (2.0/dp)*Er at p==0.
-			  But in reality (d/dp)Eq and (d/dp)Er at p==0 are not like that.  To simulate the 
-			  whole structure with only a half structure, the image current is formed on PEC, 
-			  and Eq and Er inside PEC is essentially zero. Therefore, the correct formulation of
-			  Maxwell's equations is to leave (d/dp)Eq = (1.0/dp)*Eq and (d/dp)Er = (1.0/dp)*Er,
-			  and put the additional magnetic surface current on PEC.  But this leads to a 
-			  technical difficulty.  First, in the continuous (not distretized) case Eq and Er on
-			  PEC are zeros, and the tangential component of curl(E) is zero on PEC.  This means 
-			  that the tangential component of the H field is completely generated by the surface
-			  magnetic current without any curl(E).  In other words, PEC can support any value of
-			  the tangential component of the H field; an appropriate surface current will be 
-			  readily generated.
-			  So instead of this "real" PEC, it is better to model PEC as a layer a half-grid 
-			  under the interface that actively generates an antisymmetric tangential component 
-			  of the H field.
-			 */
-			num_dFq = 1; num_dFr = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
-			//dFq[0] = 2.0*dq; dFr[0] = -2.0*dr;
-			//dFq[0] = 1.0/dp; dFr[0] = -1.0/dp;
-			dFq[0] = 2.0/dp; dFr[0] = -2.0/dp;
-		}
-		if (p==0 && gi.bc[Pp][Neg]==PMC) {  // p==0 plane
-			/** This is the Neumann condition for PMC.  Basically, this makes the 
-			  resulting H field components Hq and Hr zero on p == 0 PMC.  If the source 
-			  components Mq and Mr are not zero on p == 0 PMC, I think we need to force 
-			  them zero when constructing the source vector. */
-			/** Note that the following is the same as num_dFq = 2, num_dFr = 2, dFq =
-			  {0.0, 0.0}, dFr = {0.0, 0.0}.  But then the nonzero element pattern becomes
-			  different.  So, when we perform MatAXPY(dA, -1.0, A, strct), we cannot use 
-			  strct == SAME_NONZERO_PATTERN anymore. */
-			num_dFq = 1; num_dFr = 1;  // dFq[1] and dFr[1] are beyond the matrix index boundary
-			dFq[0] = 0.0;
-			dFr[0] = 0.0;
-		}
-		if (p==0 && gi.bc[Pp][Neg]==Bloch) {  // p==0 plane
-			/** num_dFq==2, num_dFr==2 would access the array elements out of bounds, 
-			  but this is OK because MatSetValuesStencil() below supports periodic 
-			  indexing. */
-			//dFq[1] = -dq/gi.exp_neg_ikL[Pp];
-			//dFr[1] = dr/gi.exp_neg_ikL[Pp];
-			PetscScalar scale = gi.exp_neg_ikL[Pp];
-			dFq[1] /= scale;
-			dFr[1] /= scale;
-		}
-
-		if (q==0 && gi.bc[Qq][Neg]==PEC) {  // q==0 plane
-		}
-		if (q==0 && gi.bc[Qq][Neg]==PMC) {  // q==0 plane
-			/** This is the Neumann condition for PMC.  Because the H field components Hr and
-			  Hp are zeros on q == 0 PMC, and Eq that is normal to the PMC should be zero. */ 
-			dFq[0] = 0.0; dFq[1] = 0.0;
-		}
-
-		if (r==0 && gi.bc[Rr][Neg]==PEC) {  // r==0 plane
-		}
-		if (r==0 && gi.bc[Rr][Neg]==PMC) {  // r==0 plane
-			/** This is the Neumann condition for PMC.  Because the H field components Hp and
-			  Hq are zeros on r == 0 PMC, Er that is normal to the PMC should be zero. */ 
-			dFr[0] = 0.0; dFr[1] = 0.0;
-		}
+		ierr = createFieldArray(&maskH, set_mask_prim_at, gi);
 	}
 
-	/** Below, ADD_VALUES is used instead of INSERT_VALUES to deal with cases of 
-	  gi.bc[Pp][Neg]==gi.bc[Pp][Pos]==Bloch and Np==1.  In such a case, p==0 and 
-	  p==Np-1 coincide, so inserting dFq[1] after dFq[0] overwrites dFq[0], which is
-	  not what we want.  On the other hand, if we add dFq[1] to dFq[0], it is 
-	  equivalent to insert -1.0/dp + 1.0/dp = 0.0, and this is what should be done
-	  because when Np==1, the E fields at p==0 and p==1(==Np) are the same, and the 
-	  line integrals on p==0 and p==1 cancel one another. */
-	ierr = MatSetValuesStencil(CF, 1, &indGr, num_dFq, indFq, dFq, ADD_VALUES); CHKERRQ(ierr);  // Gr <-- [curl(F)]r = (d/dp)Fq - (d/dq)Fp
-	ierr = MatSetValuesStencil(CF, 1, &indGq, num_dFr, indFr, dFr, ADD_VALUES); CHKERRQ(ierr);  // Gq <-- [curl(F)]q = (d/dr)Fp - (d/dp)Fr
+	ierr = MatCreate(PETSC_COMM_WORLD, HGrad); CHKERRQ(ierr);
+	ierr = MatSetSizes(*HGrad, gi.Nlocal_tot, gi.Nlocal_tot, PETSC_DETERMINE, PETSC_DETERMINE); CHKERRQ(ierr);
+	ierr = MatSetType(*HGrad, MATRIX_TYPE); CHKERRQ(ierr);
+	ierr = MatSetFromOptions(*HGrad);
+	ierr = MatMPIAIJSetPreallocation(*HGrad, 2, PETSC_NULL, 1, PETSC_NULL); CHKERRQ(ierr);
+	ierr = MatSeqAIJSetPreallocation(*HGrad, 2, PETSC_NULL); CHKERRQ(ierr);
+	ierr = MatSetLocalToGlobalMapping(*HGrad, gi.map, gi.map); CHKERRQ(ierr);
+	ierr = MatSetStencil(*HGrad, Naxis, gi.Nlocal_g, gi.start_g, Naxis); CHKERRQ(ierr);
+	ierr = setFGrad(*HGrad, gi.ge, gi); CHKERRQ(ierr);
+	ierr = MatAssemblyBegin(*HGrad, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+	ierr = MatAssemblyEnd(*HGrad, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+
+    ierr = MatDiagonalScale(*HGrad, maskH, PETSC_NULL); CHKERRQ(ierr);
 
 	PetscFunctionReturn(0);
 }
@@ -827,10 +336,12 @@ PetscErrorCode setDpOnCF_at(Mat CF, FieldType ftype, Axis Pp, PetscInt i, PetscI
  * -----
  * Set up the curl(F) operator matrix CF for given F == E or H.
  */
-PetscErrorCode setCF(Mat CF, FieldType ftype, GridInfo gi)
+PetscErrorCode setCF(Mat CF, GridType gtype, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
+	
+	Sign s = (Sign)((gtype+1) % Ngt);  // Pos for gtype==Prim, Neg for gtype==Dual
 
 	/** Get corners and widths of Yee's grid included in this proces. */
 	PetscInt ox, oy, oz;  // coordinates of beginning corner of Yee's grid in this process
@@ -841,39 +352,17 @@ PetscErrorCode setCF(Mat CF, FieldType ftype, GridInfo gi)
 	for (k = oz; k < oz+nz; ++k) {
 		for (j = oy; j < oy+ny; ++j) {
 			for (i = ox; i < ox+nx; ++i) {
-				for (axis = 0; axis < Naxis; ++axis) {
-					ierr = setDpOnCF_at(CF, ftype, (Axis)axis, i, j, k, gi);
+				for (axis = 0; axis < Naxis; ++axis) {  // direction of curl
+					Axis n = (Axis) axis;
+					Axis h = (Axis)((axis+1) % Naxis);  // horizontal axis
+					Axis v = (Axis)((axis+2) % Naxis);  // vertical axis
+
+					ierr = setDp(CF, s, n, i, j, k, v, h, 1.0, gi); CHKERRQ(ierr);
+					ierr = setDp(CF, s, n, i, j, k, h, v, -1.0, gi); CHKERRQ(ierr);
 				}
 			}
 		}
 	}
-
-	PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "createCH"
-/**
- * createCH
- * --------
- * Create the matrix CH, the curl operator on H fields.
- */
-PetscErrorCode createCH(Mat *CH, GridInfo gi)
-{
-	PetscFunctionBegin;
-	PetscErrorCode ierr;
-
-	ierr = MatCreate(PETSC_COMM_WORLD, CH); CHKERRQ(ierr);
-	ierr = MatSetSizes(*CH, gi.Nlocal_tot, gi.Nlocal_tot, PETSC_DETERMINE, PETSC_DETERMINE); CHKERRQ(ierr);
-	ierr = MatSetType(*CH, MATRIX_TYPE); CHKERRQ(ierr);
-	ierr = MatSetFromOptions(*CH);
-	ierr = MatMPIAIJSetPreallocation(*CH, 4, PETSC_NULL, 2, PETSC_NULL); CHKERRQ(ierr);
-	ierr = MatSeqAIJSetPreallocation(*CH, 4, PETSC_NULL); CHKERRQ(ierr);
-	ierr = MatSetLocalToGlobalMapping(*CH, gi.map, gi.map); CHKERRQ(ierr);
-	ierr = MatSetStencil(*CH, Naxis, gi.Nlocal_g, gi.start_g, Naxis); CHKERRQ(ierr);
-	ierr = setCF(*CH, Htype, gi); CHKERRQ(ierr);
-	ierr = MatAssemblyBegin(*CH, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
-	ierr = MatAssemblyEnd(*CH, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 
 	PetscFunctionReturn(0);
 }
@@ -890,6 +379,15 @@ PetscErrorCode createCE(Mat *CE, GridInfo gi)
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
 
+	Vec maskE, maskH;
+	if (gi.ge == Prim) {
+		ierr = createFieldArray(&maskE, set_mask_prim_at, gi);
+		ierr = createFieldArray(&maskH, set_mask_dual_at, gi);
+	} else {
+		ierr = createFieldArray(&maskE, set_mask_dual_at, gi);
+		ierr = createFieldArray(&maskH, set_mask_prim_at, gi);
+	}
+
 	ierr = MatCreate(PETSC_COMM_WORLD, CE); CHKERRQ(ierr);
 	ierr = MatSetSizes(*CE, gi.Nlocal_tot, gi.Nlocal_tot, PETSC_DETERMINE, PETSC_DETERMINE); CHKERRQ(ierr);
 	ierr = MatSetType(*CE, MATRIX_TYPE); CHKERRQ(ierr);
@@ -898,22 +396,62 @@ PetscErrorCode createCE(Mat *CE, GridInfo gi)
 	ierr = MatSeqAIJSetPreallocation(*CE, 4, PETSC_NULL); CHKERRQ(ierr);
 	ierr = MatSetLocalToGlobalMapping(*CE, gi.map, gi.map); CHKERRQ(ierr);
 	ierr = MatSetStencil(*CE, Naxis, gi.Nlocal_g, gi.start_g, Naxis); CHKERRQ(ierr);
-	ierr = setCF(*CE, Etype, gi); CHKERRQ(ierr);
+	ierr = setCF(*CE, gi.ge, gi); CHKERRQ(ierr);
 	ierr = MatAssemblyBegin(*CE, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 	ierr = MatAssemblyEnd(*CE, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+
+	ierr = MatDiagonalScale(*CE, maskH, maskE); CHKERRQ(ierr);
 
 	PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "createCHE"
+#define __FUNCT__ "createCH"
 /**
- * createCHE
+ * createCH
+ * --------
+ * Create the matrix CH, the curl operator on H fields.
+ */
+PetscErrorCode createCH(Mat *CH, GridInfo gi)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr;
+
+	Vec maskE, maskH;
+	if (gi.ge == Prim) {
+		ierr = createFieldArray(&maskE, set_mask_prim_at, gi);
+		ierr = createFieldArray(&maskH, set_mask_dual_at, gi);
+	} else {
+		ierr = createFieldArray(&maskE, set_mask_dual_at, gi);
+		ierr = createFieldArray(&maskH, set_mask_prim_at, gi);
+	}
+
+	ierr = MatCreate(PETSC_COMM_WORLD, CH); CHKERRQ(ierr);
+	ierr = MatSetSizes(*CH, gi.Nlocal_tot, gi.Nlocal_tot, PETSC_DETERMINE, PETSC_DETERMINE); CHKERRQ(ierr);
+	ierr = MatSetType(*CH, MATRIX_TYPE); CHKERRQ(ierr);
+	ierr = MatSetFromOptions(*CH);
+	ierr = MatMPIAIJSetPreallocation(*CH, 4, PETSC_NULL, 2, PETSC_NULL); CHKERRQ(ierr);
+	ierr = MatSeqAIJSetPreallocation(*CH, 4, PETSC_NULL); CHKERRQ(ierr);
+	ierr = MatSetLocalToGlobalMapping(*CH, gi.map, gi.map); CHKERRQ(ierr);
+	ierr = MatSetStencil(*CH, Naxis, gi.Nlocal_g, gi.start_g, Naxis); CHKERRQ(ierr);
+	ierr = setCF(*CH, (GridType)((gi.ge+1) % Ngt), gi); CHKERRQ(ierr);
+	ierr = MatAssemblyBegin(*CH, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+	ierr = MatAssemblyEnd(*CH, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+
+	ierr = MatDiagonalScale(*CH, maskE, maskH); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "createCGF"
+/**
+ * createCGF
  * -------
- * Create the matrix CHE, the curl(mu^-1 curl) operator on E fields.
+ * Create the matrix CGF, the curl((mu or eps)^-1 curl) operator on E- or H-fields.
  */
 
-PetscErrorCode createCHE(Mat *CHE, Mat CH, Mat HE, GridInfo gi)
+PetscErrorCode createCGF(Mat *CGF, Mat CG, Mat GF, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -926,7 +464,7 @@ PetscErrorCode createCHE(Mat *CHE, Mat CH, Mat HE, GridInfo gi)
 	 */
 
 	/** Below, 13 is the maximum number of nonzero elements in a diagonal portion of 
-	  a local submatrix. e.g., if CHE is 9-by-9 and distributed among 3 processors, 
+	  a local submatrix. e.g., if G=H and F=E, CHE is 9-by-9 and distributed among 3 processors, 
 	  entire row (0,1,2) compose a submatrix in processsor 0, and row (3,4,5) in 
 	  processor 1, row (6,7,8) in processor 2.  In processor 1, the diagonal portion 
 	  means 3-by-3 square matrix at the diagonal, which is composed of row (3,4,5) and 
@@ -960,7 +498,7 @@ PetscErrorCode createCHE(Mat *CHE, Mat CH, Mat HE, GridInfo gi)
 	/** Set up the matrix CHE. */
 	/** Below, we use 15.0 instead of 13.0, because some row has explicit zeros, which
 	  take memories as if they are nonzeros. */
-	ierr = MatMatMult(CH, HE, MAT_INITIAL_MATRIX, 13.0/(4.0+4.0), CHE); CHKERRQ(ierr); // CHE = CH*invMu*CE
+	ierr = MatMatMult(CG, GF, MAT_INITIAL_MATRIX, 13.0/(4.0+4.0), CGF); CHKERRQ(ierr); // CGF = CG*(invMu or invEps)*CF
 	//ierr = MatMatMult(CH, HE, MAT_INITIAL_MATRIX, PETSC_DEFAULT, CHE); CHKERRQ(ierr); // CHE = CH*invMu*CE
 
 	PetscFunctionReturn(0);
@@ -1364,47 +902,50 @@ PetscErrorCode createGD2(Mat *GD, GridInfo gi)
 
 
 #undef __FUNCT__
-#define __FUNCT__ "createGD3"
+#define __FUNCT__ "createGDsym"
 /**
- * createGD3
+ * createGDsym
  * -------
- * Create the matrix GD, the grad(eps^-2 div) operator on E fields.
+ * Create the symmetric matrix GD, the grad(mu^-1 eps^-2 div) operator on the E-field, or the 
+ * grad(eps^-1 mu^-2 div) operator on the H-field.
  */
-PetscErrorCode createGD3(Mat *GD, GridInfo gi)
+PetscErrorCode createGDsym(Mat *GD, GridInfo gi)
 {
 /** Need to divide by (eps^2 mu) rather than eps^2. */
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
 
-	/** Set up the matrix DivE, the divergence operator on E fields. */
-	Mat DivE;
-	ierr = createDivE(&DivE, gi); CHKERRQ(ierr);
+	Mat DivF, FGrad;
+	Vec epsNode, muNode, invNode;
 
-	/*
-	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nDivE\n"); CHKERRQ(ierr);
-	   ierr = MatView(DivE, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
-	 */
+	/** Set the inverse of the elementwise product of eps and mu vectors at nodes. */
+	ierr = createVecPETSc(&epsNode, "eps_node", gi); CHKERRQ(ierr);
+	if (gi.has_mu) {
+		ierr = createVecPETSc(&muNode, "mu_node", gi); CHKERRQ(ierr);
+	} else {
+		ierr = VecDuplicate(gi.vecTemp, &muNode); CHKERRQ(ierr);
+		ierr = VecSet(muNode, 1.0); CHKERRQ(ierr);
+	}
 
-	/** Set up the matrix EGrad, the gradient operator generating E fields. */
-	Mat EGrad;
-	ierr = createEGrad(&EGrad, gi); CHKERRQ(ierr);
+	/** Set up the matrix DivF and FGrad, the divergence on F and gradient operator generating F. */
+	ierr = VecPointwiseMult(invNode, epsNode, muNode); CHKERRQ(ierr);
+	if (gi.x_type == Etype) {
+		ierr = VecPointwiseMult(invNode, epsNode, invNode); CHKERRQ(ierr);
+		ierr = createDivE(&DivF, gi); CHKERRQ(ierr);
+		ierr = createEGrad(&FGrad, gi); CHKERRQ(ierr);
+		ierr = MatDiagonalScale(FGrad, epsNode, PETSC_NULL); CHKERRQ(ierr);
+	} else {
+		ierr = VecPointwiseMult(invNode, muNode, invNode); CHKERRQ(ierr);
+		ierr = createDivH(&DivF, gi); CHKERRQ(ierr);
+		ierr = createHGrad(&FGrad, gi); CHKERRQ(ierr);
+		ierr = MatDiagonalScale(FGrad, muNode, PETSC_NULL); CHKERRQ(ierr);
+	}
 
-	/** Set the inverse of the permittivity vector at nodes, and left-scale DivE by invEpsNode. */
-	Vec invEps2Node;
-	//ierr = create_epsNode(&invEps2Node, gi); CHKERRQ(ierr);
-	//ierr = createFieldArray(&invEps2Node, set_epsNode_at, gi); CHKERRQ(ierr);
-	assert(gi.has_epsNode);
-	//ierr = createVecHDF5(&invEps2Node, "/eps_node", gi); CHKERRQ(ierr);
-	ierr = createVecPETSc(&invEps2Node, "eps_node", gi); CHKERRQ(ierr);
-	ierr = VecPointwiseMult(invEps2Node, invEps2Node, invEps2Node); CHKERRQ(ierr);
-	ierr = VecReciprocal(invEps2Node); CHKERRQ(ierr);
-	ierr = MatDiagonalScale(DivE, invEps2Node, PETSC_NULL); CHKERRQ(ierr);
-	ierr = VecDestroy(&invEps2Node); CHKERRQ(ierr);
-
-	/*
-	   ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nEGrad\n"); CHKERRQ(ierr);
-	   ierr = MatView(EGrad, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
-	 */
+	ierr = VecReciprocal(invNode); CHKERRQ(ierr);
+	ierr = MatDiagonalScale(DivF, invNode, PETSC_NULL); CHKERRQ(ierr);
+	ierr = VecDestroy(&epsNode); CHKERRQ(ierr);
+	ierr = VecDestroy(&muNode); CHKERRQ(ierr);
+	ierr = VecDestroy(&invNode); CHKERRQ(ierr);
 
 	/** Create the matrix GD. */
 	/** Below, 11 is the maximum number of nonzero elements in a diagonal portion of 
@@ -1435,15 +976,16 @@ PetscErrorCode createGD3(Mat *GD, GridInfo gi)
 	  components can be in the off-diagonal portion of the submatrix. */
 
 	/** Set up the matrix GD. */
-	ierr = MatMatMult(EGrad, DivE, MAT_INITIAL_MATRIX, 11.0/(2.0+6.0), GD); CHKERRQ(ierr); // GD = EGrad*invEpsNode*DivE
+	ierr = MatMatMult(FGrad, DivF, MAT_INITIAL_MATRIX, 11.0/(2.0+6.0), GD); CHKERRQ(ierr); // GD = EGrad*invEpsNode*DivE
 	//ierr = MatMatMult(CH, HE, MAT_INITIAL_MATRIX, PETSC_DEFAULT, GD); CHKERRQ(ierr); // GD = CH*invMu*CE
 
 	/** Destroy matrices and vectors. */
-	ierr = MatDestroy(&DivE); CHKERRQ(ierr);
-	ierr = MatDestroy(&EGrad); CHKERRQ(ierr);
+	ierr = MatDestroy(&DivF); CHKERRQ(ierr);
+	ierr = MatDestroy(&FGrad); CHKERRQ(ierr);
 
 	PetscFunctionReturn(0);
 }
+
 #undef __FUNCT__
 #define __FUNCT__ "createDG"
 /**
@@ -1537,7 +1079,7 @@ PetscErrorCode hasPEC(PetscBool *flgPEC, GridInfo gi)
 {
 	PetscFunctionBegin;
 
-	if (gi.bc[Xx][Neg]==PEC || gi.bc[Yy][Neg]==PEC || gi.bc[Zz][Neg]==PEC) *flgPEC = PETSC_TRUE;
+	if (gi.bc[Xx]==PEC || gi.bc[Yy]==PEC || gi.bc[Zz]==PEC) *flgPEC = PETSC_TRUE;
 	else *flgPEC = PETSC_FALSE;
 
 	PetscFunctionReturn(0);
@@ -1555,9 +1097,9 @@ PetscErrorCode hasBloch(PetscBool *flgBloch, GridInfo gi)
 {
 	PetscFunctionBegin;
 
-	if ((gi.bc[Xx][Neg]==Bloch && gi.exp_neg_ikL[Xx]!=1.0) 
-			|| (gi.bc[Yy][Neg]==Bloch && gi.exp_neg_ikL[Yy]!=1.0)
-			|| (gi.bc[Zz][Neg]==Bloch && gi.exp_neg_ikL[Zz]!=1.0)) *flgBloch = PETSC_TRUE;
+	if ((gi.bc[Xx]==Bloch && gi.exp_neg_ikL[Xx]!=1.0) 
+			|| (gi.bc[Yy]==Bloch && gi.exp_neg_ikL[Yy]!=1.0)
+			|| (gi.bc[Zz]==Bloch && gi.exp_neg_ikL[Zz]!=1.0)) *flgBloch = PETSC_TRUE;
 	else *flgBloch = PETSC_FALSE;
 
 	PetscFunctionReturn(0);
@@ -1604,11 +1146,11 @@ PetscErrorCode numSymmetrize(Mat A)
 /**
  * stretch_d
  * ---------
- * Stretches dx, dy, dz with s-parameters.
- * Note that this function can be written to take GridInfo instead of GridInfo* because d_prim and
- * d_dual are pointer variables; even if GridInfo were used and the argument gi is delivered as a 
- * copy, the pointer values d_prim and d_dual are the same as the original, so modifying 
- * d_prim[axis][n] and d_dual[axis][n] modifies the original d_prim and d_dual elements.
+ * Stretches dx, dy, dz with s-factors.
+ * Note that this function can be written to take GridInfo instead of GridInfo* because dl is 
+ * a pointer variable; even if GridInfo were used and the argument gi is delivered as a 
+ * copy, the pointer value dl is the same as the original, so modifying dl[axis][gt][n] and 
+ * dl[axis][gt][n] modifies the original dl elements.
  * However, to make sure that users understand that the contents of gi change in this function, this
  * function is written to take GridInfo*.
  */
@@ -1618,12 +1160,13 @@ PetscErrorCode stretch_d(GridInfo *gi)
 {
 	PetscFunctionBegin;
 
-	/** Stretch gi.d_prim and gi.d_dual by gi.s_prim and gi.s_dual. */
-	PetscInt axis, n;
+	/** Stretch gi.dl by gi.s_factor. */
+	PetscInt axis, gt, n;
 	for (axis = 0; axis < Naxis; ++axis) {
-		for (n = 0; n < gi->N[axis]; ++n) {
-			gi->d_prim[axis][n] *= gi->s_prim[axis][n];
-			gi->d_dual[axis][n] *= gi->s_dual[axis][n];
+		for (gt = 0; gt < Ngt; ++gt) {
+			for (n = 0; n < gi->N[axis]; ++n) {
+				gi->dl[axis][gt][n] *= gi->s_factor[axis][gt][n];
+			}
 		}
 	}
 
@@ -1636,12 +1179,13 @@ PetscErrorCode unstretch_d(GridInfo *gi)
 {
 	PetscFunctionBegin;
 
-	/** Recover the original gi.d_prim and gi.d_dual. */
-	PetscInt axis, n;
+	/** Recover the original gi.dl. */
+	PetscInt axis, gt, n;
 	for (axis = 0; axis < Naxis; ++axis) {
-		for (n = 0; n < gi->N[axis]; ++n) {
-			gi->d_prim[axis][n] = gi->d_prim_orig[axis][n];
-			gi->d_dual[axis][n] = gi->d_dual_orig[axis][n];
+		for (gt = 0; gt < Ngt; ++gt) {
+			for (n = 0; n < gi->N[axis]; ++n) {
+				gi->dl[axis][gt][n] = gi->dl_orig[axis][gt][n];
+			}
 		}
 	}
 
@@ -1654,12 +1198,12 @@ PetscErrorCode make_d_one(GridInfo *gi)
 {
 	PetscFunctionBegin;
 
-	/** Stretch gi.d_prim and gi.d_dual by gi.s_prim and gi.s_dual. */
-	PetscInt axis, n;
+	PetscInt axis, gt, n;
 	for (axis = 0; axis < Naxis; ++axis) {
-		for (n = 0; n < gi->N[axis]; ++n) {
-			gi->d_prim[axis][n] = 1.0;
-			gi->d_dual[axis][n] = 1.0;
+		for (gt = 0; gt < Ngt; ++gt) {
+			for (n = 0; n < gi->N[axis]; ++n) {
+				gi->dl[axis][gt][n] = 1.0;
+			}
 		}
 	}
 
@@ -1671,16 +1215,17 @@ PetscErrorCode make_d_one(GridInfo *gi)
  */
 #undef __FUNCT__
 #define __FUNCT__ "create_A_and_b4"
-PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, GridInfo gi, TimeStamp *ts)
+PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec *conjParam, Vec *conjSrc, GridInfo gi, TimeStamp *ts)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
 
-	Vec eps, mu, epsMask; 
+	Vec eps, mu, param, paramMask; 
+	Vec srcJ, srcM;
 	Vec inverse;  // store various inverse vectors
 	Vec left_precond, precond;
 	Mat CE, CH;  // curl operators on E and H
-	Mat CHE; 
+	Mat CG, CGF; 
 
 	if (gi.verbose_level >= VBMedium) {
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Create the matrix for %s with %s, preconditioned by %s.\n", FieldTypeName[gi.x_type], PMLTypeName[gi.pml_type], PCTypeName[gi.pc_type]); CHKERRQ(ierr);
@@ -1693,50 +1238,39 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 
 	ierr = VecDuplicate(gi.vecTemp, &inverse); CHKERRQ(ierr);
 
-	/** Stretch gi.d_prim and gi.d_dual by gi.s_prim and gi.s_dual. */
-	if (gi.pml_type == SCPML) {
-		ierr = stretch_d(&gi); CHKERRQ(ierr);
-	}
-
-	/** Create the permittivity vector. */
-	//ierr = create_eps(&eps, gi); CHKERRQ(ierr);
-	//ierr = createFieldArray(&eps, set_eps_at, gi); CHKERRQ(ierr);
-	//ierr = createVecHDF5(&eps, "/eps", gi); CHKERRQ(ierr);
+	/** Create input vectors. */
 	ierr = createVecPETSc(&eps, "eps", gi); CHKERRQ(ierr);
-	ierr = VecDuplicate(gi.vecTemp, &epsMask); CHKERRQ(ierr);
-	ierr = VecCopy(eps, epsMask); CHKERRQ(ierr);
-	if (gi.pml_type == UPML) {
-		Vec sparamEps;
-		//ierr = create_sparamEps(&sparamEps, gi); CHKERRQ(ierr);
-		ierr = createFieldArray(&sparamEps, set_sparam_eps_at, gi); CHKERRQ(ierr);
-		ierr = VecPointwiseMult(eps, eps, sparamEps); CHKERRQ(ierr);
-		ierr = VecDestroy(&sparamEps); CHKERRQ(ierr);
-	}
-	//ierr = create_epsMask(&epsMask, gi); CHKERRQ(ierr);  // to handle TruePEC objects
-	//ierr = createFieldArray(&epsMask, set_epsMask_at, gi); CHKERRQ(ierr);  // to handle TruePEC objects
-	ierr = infMaskVec(epsMask, gi); CHKERRQ(ierr);  // to handle TruePEC objects
-	ierr = maskInf2One(eps, gi); CHKERRQ(ierr);  // to handle TruePEC objects
 	ierr = updateTimeStamp(VBDetail, ts, "eps vector", gi); CHKERRQ(ierr);
 
-
-	/** Create the permeability vector. */
-	//ierr = create_mu(&mu, gi); CHKERRQ(ierr);
-	//ierr = createFieldArray(&mu, set_mu_at, gi); CHKERRQ(ierr);
 	if (gi.has_mu) {
-		ierr = createVecHDF5(&mu, "/mu", gi); CHKERRQ(ierr);
+		ierr = createVecPETSc(&mu, "mu", gi); CHKERRQ(ierr);
 	} else {
 		ierr = VecDuplicate(gi.vecTemp, &mu); CHKERRQ(ierr);
 		ierr = VecSet(mu, 1.0); CHKERRQ(ierr);
 	}
-	
-	if (gi.pml_type == UPML) {
-		Vec sparamMu;
-		//ierr = create_sparamMu(&sparamMu, gi); CHKERRQ(ierr);
-		ierr = createFieldArray(&sparamMu, set_sparam_mu_at, gi); CHKERRQ(ierr);
-		ierr = VecPointwiseMult(mu, mu, sparamMu); CHKERRQ(ierr);
-		ierr = VecDestroy(&sparamMu); CHKERRQ(ierr);
-	}
 	ierr = updateTimeStamp(VBDetail, ts, "mu vector", gi); CHKERRQ(ierr);
+
+	ierr = createVecPETSc(&srcJ, "srcJ", gi); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VBDetail, ts, "J vector", gi); CHKERRQ(ierr);
+
+	ierr = createVecPETSc(&srcM, "srcM", gi); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VBDetail, ts, "M vector", gi); CHKERRQ(ierr);
+
+	/** Stretch parameters by  gi.s_factor. */
+	if (gi.pml_type == SCPML) {
+		ierr = stretch_d(&gi); CHKERRQ(ierr);
+	} else {  // UPML
+		assert(gi.pml_type == UPML); 
+		Vec sfactor;
+
+		ierr = createFieldArray(&sfactor, set_sfactor_eps_at, gi); CHKERRQ(ierr);
+		ierr = VecPointwiseMult(eps, eps, sfactor); CHKERRQ(ierr);
+
+		ierr = createFieldArray(&sfactor, set_sfactor_mu_at, gi); CHKERRQ(ierr);
+		ierr = VecPointwiseMult(mu, mu, sfactor); CHKERRQ(ierr);
+
+		ierr = VecDestroy(&sfactor); CHKERRQ(ierr);
+	}
 
 	/** Set up the matrix CE, the curl operator on E fields. */
 	ierr = createCE(&CE, gi); CHKERRQ(ierr);
@@ -1746,99 +1280,105 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 	ierr = createCH(&CH, gi); CHKERRQ(ierr);
 	ierr = updateTimeStamp(VBDetail, ts, "CH matrix", gi); CHKERRQ(ierr);
 
-	if (gi.x_type == Htype) {
-		Mat mat_temp;
-		Vec vec_temp;
+	/** Set up the matrix CF, the operator giving G fields from F fields. */
+	ierr = VecDuplicate(gi.vecTemp, &param); CHKERRQ(ierr);
+	ierr = VecDuplicate(gi.vecTemp, &paramMask); CHKERRQ(ierr);
+	ierr = VecDuplicate(gi.vecTemp, conjParam); CHKERRQ(ierr);
+	ierr = VecDuplicate(gi.vecTemp, conjSrc); CHKERRQ(ierr);
+	if (gi.x_type == Etype) {
+		ierr = VecCopy(eps, param); CHKERRQ(ierr);
+		ierr = VecCopy(mu, *conjParam); CHKERRQ(ierr);
+		ierr = VecCopy(srcM, *conjSrc); CHKERRQ(ierr);
 
-		mat_temp = CE; CE = CH; CH = mat_temp;
-		vec_temp = eps; eps = mu; mu = vec_temp;
+		CG = CH;
+		*CF = CE;
+		ierr = VecSet(inverse, 1.0); CHKERRQ(ierr);
+		ierr = VecPointwiseDivide(inverse, inverse, mu); CHKERRQ(ierr);
+	} else {  // Htype
+		assert(gi.x_type == Htype);
+		ierr = VecCopy(mu, param); CHKERRQ(ierr);
+		ierr = VecCopy(eps, *conjParam); CHKERRQ(ierr);
+		ierr = VecCopy(srcJ, *conjSrc); CHKERRQ(ierr);
+
+		CG = CE;
+		*CF = CH;
+		ierr = VecSet(inverse, 1.0); CHKERRQ(ierr);
+		ierr = VecPointwiseDivide(inverse, inverse, eps); CHKERRQ(ierr);
 	}
+	ierr = MatDiagonalScale(CG, PETSC_NULL, inverse); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VBDetail, ts, "CG matrix", gi); CHKERRQ(ierr);
 
-	/** Set up the matrix HE, the operator giving H fields from E fields. */
-	*HE = CE;
-	ierr = VecSet(inverse, 1.0); CHKERRQ(ierr);
-	ierr = VecPointwiseDivide(inverse, inverse, mu); CHKERRQ(ierr);
-	ierr = MatDiagonalScale(*HE, inverse, PETSC_NULL); CHKERRQ(ierr);
-	ierr = updateTimeStamp(VBDetail, ts, "HE matrix", gi); CHKERRQ(ierr);
+	ierr = VecCopy(param, paramMask); CHKERRQ(ierr);
+	ierr = infMaskVec(paramMask, gi); CHKERRQ(ierr);  // to handle TruePEC objects
+	ierr = maskInf2One(param, gi); CHKERRQ(ierr);  // to handle TruePEC objects
 
-	/** Create the matrix CHE, the curl(mu^-1 curl) operator. */
-	ierr = createCHE(&CHE, CH, *HE, gi); CHKERRQ(ierr);
-	ierr = updateTimeStamp(VBDetail, ts, "CHE matrix", gi); CHKERRQ(ierr);
-	ierr = MatDestroy(&CH); CHKERRQ(ierr);
+	/** Create the matrix CGF, the curl(mu^-1 curl) operator or curl(eps^-1 curl). */
+	ierr = createCGF(&CGF, CG, *CF, gi); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VBDetail, ts, "CGF matrix", gi); CHKERRQ(ierr);
+
+	/** Create b. */
+	ierr = VecDuplicate(gi.vecTemp, b); CHKERRQ(ierr);
+	if (gi.x_type == Etype) {
+		ierr = VecCopy(srcJ, *b); CHKERRQ(ierr);
+		ierr = VecScale(*b, PETSC_i*gi.omega); CHKERRQ(ierr);
+		ierr = MatMultAdd(CG, srcM, *b, *b); CHKERRQ(ierr);
+		ierr = VecScale(*b, -1.0); CHKERRQ(ierr);
+	} else {
+		ierr = VecCopy(srcM, *b); CHKERRQ(ierr);
+		ierr = VecScale(*b, -PETSC_i*gi.omega); CHKERRQ(ierr);
+		ierr = MatMultAdd(CG, srcJ, *b, *b); CHKERRQ(ierr);
+	}
+	ierr = updateTimeStamp(VBDetail, ts, "b vector", gi); CHKERRQ(ierr);
 
 	if (!gi.add_conteq) {
-		/** Below, isn't *A = CHE the same as A = &CHE?  No.  Remember that A is a return value.  
+		/** Below, isn't *A = CGF the same as A = &CGF?  No.  Remember that A is a return value.  
 		  When this function is called, we do:
 		  Mat B;
 		  ...
 		  ierr = create_XXX_A_YYY(&B, ...); CHKERRQ(ierr);
-		  The intension of this function call is to fill the memory pointed by &B. *A = CHE fulfills 
+		  The intension of this function call is to fill the memory pointed by &B. *A = CGF fulfills 
 		  this intension.
-		  On the other hand, if the below line is A = &CHE, it is nothing but changing the value of 
-		  the pointer variable A from &B to &CHE.  Therefore nothing is returned to B. */
-		*A = CHE;
-
-		/** Create b. */
-		//ierr = create_jSrc(b, gi); CHKERRQ(ierr);
-		//ierr = createFieldArray(b, set_src_at, gi); CHKERRQ(ierr);
-		//ierr = createVecHDF5(b, "/J", gi); CHKERRQ(ierr);
-		ierr = createVecPETSc(b, "J", gi); CHKERRQ(ierr);
-		ierr = VecScale(*b, -PETSC_i*gi.omega); CHKERRQ(ierr);
-		ierr = updateTimeStamp(VBDetail, ts, "b vector", gi); CHKERRQ(ierr);
+		  On the other hand, if the below line is A = &CGF, it is nothing but changing the value of 
+		  the pointer variable A from &B to &CGF.  Therefore nothing is returned to B. */
+		*A = CGF;
 	} else {  // currently, add_conteq only works for x_type == Etype
 		ierr = createAtemplate(A, gi); CHKERRQ(ierr);
-		ierr = MatAXPY(*A, 1.0, CHE, SUBSET_NONZERO_PATTERN); CHKERRQ(ierr);
-		ierr = MatDestroy(&CHE); CHKERRQ(ierr);
+		ierr = MatAXPY(*A, 1.0, CGF, SUBSET_NONZERO_PATTERN); CHKERRQ(ierr);
+		ierr = MatDestroy(&CGF); CHKERRQ(ierr);
 
 		/** Create the gradient-divergence operator. */
 		Mat GD;
-		//ierr = createGD(&GD, gi); CHKERRQ(ierr);
-		//ierr = createGD2(&GD, gi); CHKERRQ(ierr);
-		ierr = createGD3(&GD, gi); CHKERRQ(ierr);
-		ierr = MatDiagonalScale(GD, eps, PETSC_NULL); CHKERRQ(ierr);  // GD = eps grad[eps^-2 div()]; only for createGD3
-/*
-ierr = VecSet(inverse, 1.0); CHKERRQ(ierr);
-ierr = VecPointwiseDivide(inverse, inverse, eps); CHKERRQ(ierr);
-ierr = MatDiagonalScale(GD, inverse, PETSC_NULL); CHKERRQ(ierr);
-*/
+		ierr = createGDsym(&GD, gi); CHKERRQ(ierr);
 		ierr = updateTimeStamp(VBDetail, ts, "GD matrix", gi); CHKERRQ(ierr);
 
 		/** Create b. */
 		Vec b_aug;
 		ierr = VecDuplicate(gi.vecTemp, &b_aug); CHKERRQ(ierr);
-		//ierr = create_jSrc(b, gi); CHKERRQ(ierr);
-		//ierr = createFieldArray(b, set_src_at, gi); CHKERRQ(ierr);  // b = J
-		//ierr = createVecHDF5(b, "/J", gi); CHKERRQ(ierr);  // b = J
-		ierr = createVecPETSc(b, "J", gi); CHKERRQ(ierr);  // b = J
-		ierr = VecCopy(*b, b_aug); CHKERRQ(ierr);  // b_aug = J
+		if (gi.x_type == Etype) {
+			ierr = VecCopy(srcJ, b_aug); CHKERRQ(ierr);  // b_aug = J
+		} else {
+			ierr = VecCopy(srcM, b_aug); CHKERRQ(ierr);  // b_aug = M
+		}
+
 		ierr = VecScale(b_aug, gi.factor_conteq*PETSC_i/gi.omega); CHKERRQ(ierr);  // b_aug = s*(i/omega)*J
-		ierr = VecScale(*b, -PETSC_i*gi.omega); CHKERRQ(ierr);  // b = -i*omega*J
 		ierr = MatMultAdd(GD, b_aug, *b, *b); CHKERRQ(ierr);  // b = -i*omega*J + GD * s*(i/omega)*J
 		ierr = VecDestroy(&b_aug); CHKERRQ(ierr);
-		ierr = updateTimeStamp(VBDetail, ts, "b vector", gi); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VBDetail, ts, "b_aug vector", gi); CHKERRQ(ierr);
 
-		ierr = MatDiagonalScale(GD, PETSC_NULL, eps); CHKERRQ(ierr);
+		ierr = MatDiagonalScale(GD, PETSC_NULL, param); CHKERRQ(ierr);
 		ierr = MatAXPY(*A, gi.factor_conteq, GD, SUBSET_NONZERO_PATTERN); CHKERRQ(ierr);
 		ierr = MatDestroy(&GD); CHKERRQ(ierr);
 	}
 
-	ierr = MatDiagonalScale(*A, epsMask, epsMask); CHKERRQ(ierr);  // omega^2*mu*eps is not subtracted yet, so the diagonal entries will be nonzero
-	ierr = VecPointwiseMult(*b, epsMask, *b); CHKERRQ(ierr);  // force E = 0 on TruePEC.  comment this line to allow source on TruePEC
+	ierr = MatDiagonalScale(*A, paramMask, paramMask); CHKERRQ(ierr);  // omega^2*mu*eps is not subtracted yet, so the diagonal entries will be nonzero
+	ierr = VecPointwiseMult(*b, paramMask, *b); CHKERRQ(ierr);  // force E = 0 on TruePEC.  comment this line to allow source on TruePEC
 
 	if (!gi.solve_eigen) {
-		Vec negW2Eps = eps;
-		ierr = VecScale(negW2Eps, -gi.omega*gi.omega); CHKERRQ(ierr);
-		ierr = MatDiagonalSet(*A, negW2Eps, ADD_VALUES); CHKERRQ(ierr);
+		Vec negW2Param = param;
+		ierr = VecScale(negW2Param, -gi.omega*gi.omega); CHKERRQ(ierr);
+		ierr = MatDiagonalSet(*A, negW2Param, ADD_VALUES); CHKERRQ(ierr);
 	}
 	ierr = updateTimeStamp(VBDetail, ts, "A matrix", gi); CHKERRQ(ierr);
-
-	/** Scale the matrix HE. */
-	if (gi.x_type == Etype) {
-		ierr = MatScale(*HE, -1/gi.omega/PETSC_i); CHKERRQ(ierr);  // HE = [(-i*omega)^-1] * invMu*CH
-	} else {
-		ierr = MatScale(*HE, 1/gi.omega/PETSC_i); CHKERRQ(ierr);  // HE = [(i*omega)^-1] * invEps * CH, where HE is in fact EH
-	}
-	ierr = updateTimeStamp(VBDetail, ts, "HE matrix scaling", gi); CHKERRQ(ierr);
 
 	/** Create the left and right preconditioner. */
 	/** Set the left preconditioner. */
@@ -1857,10 +1397,14 @@ ierr = MatDiagonalScale(GD, inverse, PETSC_NULL); CHKERRQ(ierr);
 		/** Calculate the diagonal matrix to be multiplied to the left and right of the 
 		  matrix A for symmetrizing A. */
 		Vec sqrtLS, dS;
-		//ierr = create_dLf(&sqrtLS, Etype, gi); CHKERRQ(ierr);
-		ierr = createFieldArray(&sqrtLS, set_dLe_at, gi); CHKERRQ(ierr);
-		//ierr = create_dSf(&dS, Etype, gi); CHKERRQ(ierr);
-		ierr = createFieldArray(&dS, set_dSe_at, gi); CHKERRQ(ierr);
+		if (gi.x_type == Etype) {
+			ierr = createFieldArray(&sqrtLS, set_dLe_at, gi); CHKERRQ(ierr);
+			ierr = createFieldArray(&dS, set_dSe_at, gi); CHKERRQ(ierr);
+		} else {
+			assert(gi.x_type == Htype);
+			ierr = createFieldArray(&sqrtLS, set_dLh_at, gi); CHKERRQ(ierr);
+			ierr = createFieldArray(&dS, set_dSh_at, gi); CHKERRQ(ierr);
+		}
 		ierr = VecPointwiseMult(sqrtLS, sqrtLS, dS); CHKERRQ(ierr);
 		ierr = VecDestroy(&dS); CHKERRQ(ierr);
 		ierr = sqrtVec(sqrtLS, gi); CHKERRQ(ierr);
@@ -1868,43 +1412,55 @@ ierr = MatDiagonalScale(GD, inverse, PETSC_NULL); CHKERRQ(ierr);
 		ierr = VecPointwiseMult(*right_precond, *right_precond, sqrtLS); CHKERRQ(ierr);
 		ierr = VecDestroy(&sqrtLS); CHKERRQ(ierr);
 
-		Vec sqrtScaleEpec;
-		//ierr = create_scaleEpec(&sqrtScaleEpec, gi); CHKERRQ(ierr);
-		ierr = createFieldArray(&sqrtScaleEpec, set_scale_Epec_at, gi); CHKERRQ(ierr);
-		ierr = sqrtVec(sqrtScaleEpec, gi); CHKERRQ(ierr);
+		Vec sqrtDoubleFbc;
+		ierr = createFieldArray(&sqrtDoubleFbc, set_double_Fbc_at, gi); CHKERRQ(ierr);
+		ierr = sqrtVec(sqrtDoubleFbc, gi); CHKERRQ(ierr);
 
-		ierr = VecPointwiseDivide(*right_precond, *right_precond, sqrtScaleEpec); CHKERRQ(ierr);
-		ierr = VecDestroy(&sqrtScaleEpec); CHKERRQ(ierr);
+		ierr = VecPointwiseDivide(*right_precond, *right_precond, sqrtDoubleFbc); CHKERRQ(ierr);
+		ierr = VecDestroy(&sqrtDoubleFbc); CHKERRQ(ierr);
+
 		ierr = VecPointwiseDivide(left_precond, left_precond, *right_precond); CHKERRQ(ierr);
 	}
 
 	/** Apply the preconditioner. Only one type of preconditioners is applied. */
-	if (gi.pc_type == PCSparam) {  
-		Vec sparamL, sparamS;
-		//ierr = create_sparamLf(&sparamL, Etype, gi); CHKERRQ(ierr);
-		ierr = createFieldArray(&sparamL, set_sparamLe_at, gi); CHKERRQ(ierr);
-		//ierr = create_sparamSf(&sparamS, Etype, gi); CHKERRQ(ierr);
-		ierr = createFieldArray(&sparamS, set_sparamSe_at, gi); CHKERRQ(ierr);
-		if (!gi.is_symmetric) {  // Ascpml = diag(1/sparamS) Aupml diag(sparamL)
-			ierr = VecPointwiseMult(left_precond, left_precond, sparamS); CHKERRQ(ierr);
-			ierr = VecPointwiseDivide(*right_precond, *right_precond, sparamL); CHKERRQ(ierr);
-		} else {  // diag(sqrt(sparamL/sparamS)) Aupml diag(sqrt(sparamL/sparamS))
+	if (gi.pc_type == PCSfactor) {  
+		Vec sfactorL, sfactorS;
+		if (gi.x_type == Etype) {
+			ierr = createFieldArray(&sfactorL, set_sfactorLe_at, gi); CHKERRQ(ierr);
+			ierr = createFieldArray(&sfactorS, set_sfactorSe_at, gi); CHKERRQ(ierr);
+		} else {
+			assert(gi.x_type == Htype);
+			ierr = createFieldArray(&sfactorL, set_sfactorLh_at, gi); CHKERRQ(ierr);
+			ierr = createFieldArray(&sfactorS, set_sfactorSh_at, gi); CHKERRQ(ierr);
+		}
+		if (!gi.is_symmetric) {  // Ascpml = diag(1/sfactorS) Aupml diag(sfactorL)
+			ierr = VecPointwiseMult(left_precond, left_precond, sfactorS); CHKERRQ(ierr);
+			ierr = VecPointwiseDivide(*right_precond, *right_precond, sfactorL); CHKERRQ(ierr);
+		} else {  // diag(sqrt(sfactorL/sfactorS)) Aupml diag(sqrt(sfactorL/sfactorS))
 			Vec sqrtLoverS;
 			ierr = VecDuplicate(gi.vecTemp, &sqrtLoverS); CHKERRQ(ierr);
-			ierr = VecPointwiseDivide(sqrtLoverS, sparamL, sparamS); CHKERRQ(ierr);
+			ierr = VecPointwiseDivide(sqrtLoverS, sfactorL, sfactorS); CHKERRQ(ierr);
 			ierr = sqrtVec(sqrtLoverS, gi); CHKERRQ(ierr);
 			ierr = VecPointwiseDivide(left_precond, left_precond, sqrtLoverS); CHKERRQ(ierr);
 			ierr = VecPointwiseDivide(*right_precond, *right_precond, sqrtLoverS); CHKERRQ(ierr);
 			ierr = VecDestroy(&sqrtLoverS); CHKERRQ(ierr);
 		}
 
-		ierr = VecDestroy(&sparamL); CHKERRQ(ierr);
-		ierr = VecDestroy(&sparamS); CHKERRQ(ierr);
-		ierr = updateTimeStamp(VBDetail, ts, "s-parameter preconditioner", gi); CHKERRQ(ierr);
-	} else if (gi.pc_type == PCEps) {
-		//ierr = create_eps(&precond, gi); CHKERRQ(ierr);
-		//ierr = createFieldArray(&precond, set_eps_at, gi); CHKERRQ(ierr);
-		ierr = createVecHDF5(&precond, "/eps", gi); CHKERRQ(ierr);
+		ierr = VecDestroy(&sfactorL); CHKERRQ(ierr);
+		ierr = VecDestroy(&sfactorS); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VBDetail, ts, "s-factor preconditioner", gi); CHKERRQ(ierr);
+	} else if (gi.pc_type == PCParam) {
+		if (gi.x_type == Etype) {
+			ierr = createVecHDF5(&precond, "/eps", gi); CHKERRQ(ierr);
+		} else {
+			assert(gi.x_type == Htype);
+			if (gi.has_mu) {
+				ierr = createVecHDF5(&precond, "/mu", gi); CHKERRQ(ierr);
+			} else {
+				ierr = VecDuplicate(gi.vecTemp, &precond); CHKERRQ(ierr);
+				ierr = VecSet(precond, 1.0); CHKERRQ(ierr);
+			}
+		}
 		if (!gi.is_symmetric) {
 			ierr = VecPointwiseMult(left_precond, left_precond, precond); CHKERRQ(ierr);
 		} else {
@@ -1945,14 +1501,18 @@ ierr = MatDiagonalScale(GD, inverse, PETSC_NULL); CHKERRQ(ierr);
 	ierr = VecDestroy(&inv_left); CHKERRQ(ierr);
 	ierr = VecDestroy(&inv_right); CHKERRQ(ierr);
 
-	/** Recover the original d_dual and d_prim. */
+	/** Recover the original dl. */
 	if (gi.pml_type == SCPML) {
 		ierr = unstretch_d(&gi); CHKERRQ(ierr);
 	}
 
-	ierr = VecDestroy(&eps); CHKERRQ(ierr);
+	ierr = MatDestroy(&CG); CHKERRQ(ierr);
 	ierr = VecDestroy(&mu); CHKERRQ(ierr);
-	ierr = VecDestroy(&epsMask); CHKERRQ(ierr);
+	ierr = VecDestroy(&eps); CHKERRQ(ierr);
+	ierr = VecDestroy(&param); CHKERRQ(ierr);
+	ierr = VecDestroy(&paramMask); CHKERRQ(ierr);
+	ierr = VecDestroy(&srcJ); CHKERRQ(ierr);
+	ierr = VecDestroy(&srcM); CHKERRQ(ierr);
 	ierr = VecDestroy(&inverse); CHKERRQ(ierr);
 	ierr = VecDestroy(&left_precond); CHKERRQ(ierr);
 

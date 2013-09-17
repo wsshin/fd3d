@@ -1,3 +1,4 @@
+#include <assert.h>
 #include "vec.h"
 
 #undef __FUNCT__
@@ -93,34 +94,67 @@ PetscErrorCode createFieldArray(Vec *field, FunctionSetComponentAt setComponentA
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "set_scale_Epec_at"
+#define __FUNCT__ "set_mask_prim_at"
 /**
- * set_scale_Epec_at
+ * set_mask_prim_at
  * -------------
- * Set an element of the vector that scales E fields on PEC by a factor of 2.
+ * Mask the primary fields at the negative boundaries according to their boundary conditions.
  */
-PetscErrorCode set_scale_Epec_at(PetscScalar *scale_Epec_value, Axis axis, const PetscInt ind[], GridInfo *gi)
+PetscErrorCode set_mask_prim_at(PetscScalar *mask_prim_value, Axis axis, const PetscInt ind[], GridInfo *gi)
 {
 	PetscFunctionBegin;
 
-	*scale_Epec_value = 1.0;
-	if (gi->bc[axis][Neg]==PEC && ind[axis]==0) {
-		*scale_Epec_value *= 2.0;
+	*mask_prim_value = 1.0;
+	Axis u = (Axis)((axis+1) % Naxis);
+	if (ind[u]==0) {
+		if ((gi->ge==Prim && gi->bc[u]==PEC) || (gi->ge==Dual && gi->bc[u]==PMC)) {
+			*mask_prim_value = 0.0;
+		}
+	}
+
+	u = (Axis)((axis+2) % Naxis);
+	if (ind[u]==0) {
+		if ((gi->ge==Prim && gi->bc[u]==PEC) || (gi->ge==Dual && gi->bc[u]==PMC)) {
+			*mask_prim_value = 0.0;
+		}
 	}
 
 	PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "set_sparam_mu_at"
+#define __FUNCT__ "set_mask_dual_at"
 /**
- * set_sparam_mu_at
+ * set_mask_dual_at
  * -------------
- * Set an element of the vector of s-parameter factors for mu.
+ * Mask the dual fields at the negative boundaries according to their boundary conditions.
  */
-PetscErrorCode set_sparam_mu_at(PetscScalar *sparam_mu_value, Axis axis, const PetscInt ind[], GridInfo *gi)
+PetscErrorCode set_mask_dual_at(PetscScalar *mask_dual_value, Axis axis, const PetscInt ind[], GridInfo *gi)
 {
 	PetscFunctionBegin;
+
+	*mask_dual_value = 1.0;
+	if (ind[axis]==0) {
+		if ((gi->ge==Prim && gi->bc[axis]==PEC) || (gi->ge==Dual && gi->bc[axis]==PMC)) {
+			*mask_dual_value = 0.0;
+		}
+	}
+
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "set_double_Fbc_at"
+/**
+ * set_double_Fbc_at
+ * -------------
+ * Set an element of the vector that scales fields at boundaries by a factor of 2.
+ */
+PetscErrorCode set_double_Fbc_at(PetscScalar *double_Fbc_value, Axis axis, const PetscInt ind[], GridInfo *gi)
+{
+	PetscFunctionBegin;
+
+	*double_Fbc_value = 2.0;
 
 	Axis axis0 = axis;
 	Axis axis1 = (Axis)((axis+1) % Naxis);
@@ -130,27 +164,54 @@ PetscErrorCode set_sparam_mu_at(PetscScalar *sparam_mu_value, Axis axis, const P
 	PetscInt ind1 = ind[axis1];
 	PetscInt ind2 = ind[axis2];
 
-	/** When w = x, y, z, mu_w is defined at Hw points.  Therefore mu_w is at the 
-	  dual grid point in w axis, and at primary grid points in the other two axes. */
-	*sparam_mu_value = gi->s_prim[axis1][ind1] * gi->s_prim[axis2][ind2] / gi->s_dual[axis0][ind0];
+	BC bc;
+
+	if (gi->x_type==Etype && gi->ge==Prim) {
+		bc = PMC;
+	} else if (gi->x_type==Etype && gi->ge==Dual) {
+		bc = PEC;
+	} else if (gi->x_type==Htype && gi->ge==Dual) {
+		bc = PEC;
+	} else {
+		assert(gi->x_type==Htype && gi->ge==Prim);
+		bc = PMC;
+	}
+
+	if ((gi->x_type==Etype && gi->ge==Dual) || (gi->x_type==Htype && gi->ge==Prim)) {
+		if (ind0==0 && gi->bc[axis0]==bc) {
+			*double_Fbc_value *= 2.0;
+		}
+	} else {
+		assert((gi->x_type==Etype && gi->ge==Prim) || (gi->x_type==Htype && gi->ge==Dual));
+		if (gi->bc[axis1]==bc && ind1==0) {
+			*double_Fbc_value *= 2.0;
+		}
+
+		if (gi->bc[axis2]==bc && ind2==0) {
+			*double_Fbc_value *= 2.0;
+		}
+	}
 
 	PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "set_dparam_mu_at"
+#define __FUNCT__ "set_sfactor_mu_at"
 /**
- * set_dparam_mu_at
+ * set_sfactor_mu_at
  * -------------
- * Set an element of the vector of d-parameter factors (dy*dz/dx, dz*dx/dy, dx*dy/dz) for mu.
+ * Set an element of the vector of s-factors for mu.
  */
-PetscErrorCode set_dparam_mu_at(PetscScalar *dparam_mu_value, Axis axis, const PetscInt ind[], GridInfo *gi)
+PetscErrorCode set_sfactor_mu_at(PetscScalar *sfactor_mu_value, Axis axis, const PetscInt ind[], GridInfo *gi)
 {
 	PetscFunctionBegin;
 
 	Axis axis0 = axis;
 	Axis axis1 = (Axis)((axis+1) % Naxis);
 	Axis axis2 = (Axis)((axis+2) % Naxis);
+
+	GridType ge = gi->ge;
+	GridType gm = (GridType)((ge+1) % Ngt);
 
 	PetscInt ind0 = ind[axis0];
 	PetscInt ind1 = ind[axis1];
@@ -158,19 +219,19 @@ PetscErrorCode set_dparam_mu_at(PetscScalar *dparam_mu_value, Axis axis, const P
 
 	/** When w = x, y, z, mu_w is defined at Hw points.  Therefore mu_w is at the 
 	  dual grid point in w axis, and at primary grid points in the other two axes. */
-	*dparam_mu_value = gi->d_prim[axis1][ind1] * gi->d_prim[axis2][ind2] / gi->d_dual[axis0][ind0];
+	*sfactor_mu_value = gi->s_factor[axis1][gm][ind1] * gi->s_factor[axis2][gm][ind2] / gi->s_factor[axis0][ge][ind0];
 
 	PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "set_sparam_eps_at"
+#define __FUNCT__ "set_dfactor_mu_at"
 /**
- * set_sparam_eps_at
+ * set_dfactor_mu_at
  * -------------
- * Set an element of the vector of s-parameter factors for eps.
+ * Set an element of the vector of d-factors (dy*dz/dx, dz*dx/dy, dx*dy/dz) for mu.
  */
-PetscErrorCode set_sparam_eps_at(PetscScalar *sparam_eps_value, Axis axis, const PetscInt ind[], GridInfo *gi)
+PetscErrorCode set_dfactor_mu_at(PetscScalar *dfactor_mu_value, Axis axis, const PetscInt ind[], GridInfo *gi)
 {
 	PetscFunctionBegin;
 
@@ -178,21 +239,28 @@ PetscErrorCode set_sparam_eps_at(PetscScalar *sparam_eps_value, Axis axis, const
 	Axis axis1 = (Axis)((axis+1) % Naxis);
 	Axis axis2 = (Axis)((axis+2) % Naxis);
 
-	/** When w = x, y, z, eps_w is defined at Ew points.  Therefore eps_w is at the 
-	  primary grid point in w axis, and at dual grid points in the other two axes. */
-	*sparam_eps_value = gi->s_dual[axis1][ind[axis1]] * gi->s_dual[axis2][ind[axis2]] / gi->s_prim[axis0][ind[axis0]];
+	GridType ge = gi->ge;
+	GridType gm = (GridType)((ge+1) % Ngt);
+
+	PetscInt ind0 = ind[axis0];
+	PetscInt ind1 = ind[axis1];
+	PetscInt ind2 = ind[axis2];
+
+	/** When w = x, y, z, mu_w is defined at Hw points.  Therefore mu_w is at the 
+	  dual grid point in w axis, and at primary grid points in the other two axes. */
+	*dfactor_mu_value = gi->dl[axis1][gm][ind1] * gi->dl[axis2][gm][ind2] / gi->dl[axis0][ge][ind0];
 
 	PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "set_dparam_eps_at"
+#define __FUNCT__ "set_sfactor_eps_at"
 /**
- * set_dparam_eps_at
+ * set_sfactor_eps_at
  * -------------
- * Set an element of the vector of d-parameter factors (dy*dz/dx, dz*dx/dy, dx*dy/dz) for eps.
+ * Set an element of the vector of s-factors for eps.
  */
-PetscErrorCode set_dparam_eps_at(PetscScalar *dparam_eps_value, Axis axis, const PetscInt ind[], GridInfo *gi)
+PetscErrorCode set_sfactor_eps_at(PetscScalar *sfactor_eps_value, Axis axis, const PetscInt ind[], GridInfo *gi)
 {
 	PetscFunctionBegin;
 
@@ -200,9 +268,45 @@ PetscErrorCode set_dparam_eps_at(PetscScalar *dparam_eps_value, Axis axis, const
 	Axis axis1 = (Axis)((axis+1) % Naxis);
 	Axis axis2 = (Axis)((axis+2) % Naxis);
 
+	GridType ge = gi->ge;
+	GridType gm = (GridType)((ge+1) % Ngt);
+
+	PetscInt ind0 = ind[axis0];
+	PetscInt ind1 = ind[axis1];
+	PetscInt ind2 = ind[axis2];
+
 	/** When w = x, y, z, eps_w is defined at Ew points.  Therefore eps_w is at the 
 	  primary grid point in w axis, and at dual grid points in the other two axes. */
-	*dparam_eps_value = gi->d_dual[axis1][ind[axis1]] * gi->d_dual[axis2][ind[axis2]] / gi->d_prim[axis0][ind[axis0]];
+	*sfactor_eps_value = gi->s_factor[axis1][ge][ind1] * gi->s_factor[axis2][ge][ind2] / gi->s_factor[axis0][gm][ind0];
+
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "set_dfactor_eps_at"
+/**
+ * set_dfactor_eps_at
+ * -------------
+ * Set an element of the vector of d-factors (dy*dz/dx, dz*dx/dy, dx*dy/dz) for eps.
+ */
+PetscErrorCode set_dfactor_eps_at(PetscScalar *dfactor_eps_value, Axis axis, const PetscInt ind[], GridInfo *gi)
+{
+	PetscFunctionBegin;
+
+	Axis axis0 = axis;
+	Axis axis1 = (Axis)((axis+1) % Naxis);
+	Axis axis2 = (Axis)((axis+2) % Naxis);
+
+	GridType ge = gi->ge;
+	GridType gm = (GridType)((ge+1) % Ngt);
+
+	PetscInt ind0 = ind[axis0];
+	PetscInt ind1 = ind[axis1];
+	PetscInt ind2 = ind[axis2];
+
+	/** When w = x, y, z, eps_w is defined at Ew points.  Therefore eps_w is at the 
+	  primary grid point in w axis, and at dual grid points in the other two axes. */
+	*dfactor_eps_value = gi->dl[axis1][ge][ind1] * gi->dl[axis2][ge][ind2] / gi->dl[axis0][gm][ind0];
 
 	PetscFunctionReturn(0);
 }
@@ -354,9 +458,11 @@ PetscErrorCode set_dLe_at(PetscScalar *dLe_value, Axis axis, const PetscInt ind[
 	PetscFunctionBegin;
 
 	Axis axis0 = axis;
+	GridType ge = gi->ge;
+	GridType gm = (GridType)((ge+1) % Ngt);
 	PetscInt ind0 = ind[axis0];
 
-	*dLe_value = gi->d_prim[axis0][ind0];
+	*dLe_value = gi->dl[axis0][gm][ind0];
 
 	PetscFunctionReturn(0);
 }
@@ -373,49 +479,53 @@ PetscErrorCode set_dLh_at(PetscScalar *dLh_value, Axis axis, const PetscInt ind[
 	PetscFunctionBegin;
 
 	Axis axis0 = axis;
+	GridType ge = gi->ge;
 	PetscInt ind0 = ind[axis0];
 
-	*dLh_value = gi->d_dual[axis0][ind0];
+	*dLh_value = gi->dl[axis0][ge][ind0];
 
 	PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "set_sparamLe_at"
+#define __FUNCT__ "set_sfactorLe_at"
 /**
- * set_sparamLe_at
+ * set_sfactorLe_at
  * -------------
  * Set an element of the vector whose elements are length stretch factors centered by E-field 
  * components.
  */
-PetscErrorCode set_sparamLe_at(PetscScalar *sparamLe_value, Axis axis, const PetscInt ind[], GridInfo *gi)
+PetscErrorCode set_sfactorLe_at(PetscScalar *sfactorLe_value, Axis axis, const PetscInt ind[], GridInfo *gi)
 {
 	PetscFunctionBegin;
 
 	Axis axis0 = axis;
+	GridType ge = gi->ge;
+	GridType gm = (GridType)((ge+1) % Ngt);
 	PetscInt ind0 = ind[axis0];
 
-	*sparamLe_value = gi->s_prim[axis0][ind0];
+	*sfactorLe_value = gi->s_factor[axis0][gm][ind0];
 
 	PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "set_sparamLh_at"
+#define __FUNCT__ "set_sfactorLh_at"
 /**
- * set_sparamLh_at
+ * set_sfactorLh_at
  * -------------
  * Set an element of the vector whose elements are length stretch factors centered by H-field 
  * components.
  */
-PetscErrorCode set_sparamLh_at(PetscScalar *sparamLh_value, Axis axis, const PetscInt ind[], GridInfo *gi)
+PetscErrorCode set_sfactorLh_at(PetscScalar *sfactorLh_value, Axis axis, const PetscInt ind[], GridInfo *gi)
 {
 	PetscFunctionBegin;
 
 	Axis axis0 = axis;
+	GridType ge = gi->ge;
 	PetscInt ind0 = ind[axis0];
 
-	*sparamLh_value = gi->s_dual[axis0][ind0];
+	*sfactorLh_value = gi->s_factor[axis0][ge][ind0];
 
 	PetscFunctionReturn(0);
 }
@@ -434,10 +544,12 @@ PetscErrorCode set_dSe_at(PetscScalar *dSe_value, Axis axis, const PetscInt ind[
 	Axis axis1 = (Axis)((axis+1) % Naxis);
 	Axis axis2 = (Axis)((axis+2) % Naxis);
 
+	GridType ge = gi->ge;
+
 	PetscInt ind1 = ind[axis1];
 	PetscInt ind2 = ind[axis2];
 
-	*dSe_value = gi->d_dual[axis1][ind1] * gi->d_dual[axis2][ind2];
+	*dSe_value = gi->dl[axis1][ge][ind1] * gi->dl[axis2][ge][ind2];
 
 	PetscFunctionReturn(0);
 }
@@ -456,56 +568,64 @@ PetscErrorCode set_dSh_at(PetscScalar *dSh_value, Axis axis, const PetscInt ind[
 	Axis axis1 = (Axis)((axis+1) % Naxis);
 	Axis axis2 = (Axis)((axis+2) % Naxis);
 
+	GridType ge = gi->ge;
+	GridType gm = (GridType)((ge+1) % Ngt);
+
 	PetscInt ind1 = ind[axis1];
 	PetscInt ind2 = ind[axis2];
 
-	*dSh_value = gi->d_prim[axis1][ind1] * gi->d_prim[axis2][ind2];
+	*dSh_value = gi->dl[axis1][gm][ind1] * gi->dl[axis2][gm][ind2];
 
 	PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "set_sparamSe_at"
+#define __FUNCT__ "set_sfactorSe_at"
 /**
- * set_sparamSe_at
+ * set_sfactorSe_at
  * -------------
  * Set an element of the vector whose elements are the area stretch factors centered by E-field 
  * components.
  */
-PetscErrorCode set_sparamSe_at(PetscScalar *sparamSe_value, Axis axis, const PetscInt ind[], GridInfo *gi)
+PetscErrorCode set_sfactorSe_at(PetscScalar *sfactorSe_value, Axis axis, const PetscInt ind[], GridInfo *gi)
 {
 	PetscFunctionBegin;
 
 	Axis axis1 = (Axis)((axis+1) % Naxis);
 	Axis axis2 = (Axis)((axis+2) % Naxis);
 
+	GridType ge = gi->ge;
+
 	PetscInt ind1 = ind[axis1];
 	PetscInt ind2 = ind[axis2];
 
-	*sparamSe_value = gi->s_dual[axis1][ind1] * gi->s_dual[axis2][ind2];
+	*sfactorSe_value = gi->s_factor[axis1][ge][ind1] * gi->s_factor[axis2][ge][ind2];
 
 	PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "set_sparamSh_at"
+#define __FUNCT__ "set_sfactorSh_at"
 /**
- * set_sparamSh_at
+ * set_sfactorSh_at
  * -------------
  * Set an element of the vector whose elements are the area stretch factors centered by H-field 
  * components.
  */
-PetscErrorCode set_sparamSh_at(PetscScalar *sparamSh_value, Axis axis, const PetscInt ind[], GridInfo *gi)
+PetscErrorCode set_sfactorSh_at(PetscScalar *sfactorSh_value, Axis axis, const PetscInt ind[], GridInfo *gi)
 {
 	PetscFunctionBegin;
 
 	Axis axis1 = (Axis)((axis+1) % Naxis);
 	Axis axis2 = (Axis)((axis+2) % Naxis);
 
+	GridType ge = gi->ge;
+	GridType gm = (GridType)((ge+1) % Ngt);
+
 	PetscInt ind1 = ind[axis1];
 	PetscInt ind2 = ind[axis2];
 
-	*sparamSh_value = gi->s_prim[axis1][ind1] * gi->s_prim[axis2][ind2];
+	*sfactorSh_value = gi->s_factor[axis1][gm][ind1] * gi->s_factor[axis2][gm][ind2];
 
 	PetscFunctionReturn(0);
 }
