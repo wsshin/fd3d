@@ -1226,7 +1226,7 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 	Mat CG, CGF; 
 
 	if (gi.verbose_level >= VBMedium) {
-		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Create matrix for %s on %s grid with %s, preconditioned by %s.\n", FieldTypeName[gi.x_type], GridTypeName[gi.ge], PMLTypeName[gi.pml_type], PCTypeName[gi.pc_type]); CHKERRQ(ierr);
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Create matrix for %s on %s grid with %s, preconditioned by %s.\n", FieldTypeName[gi.x_type], GridTypeName[gi.x_type==Etype ? gi.ge:((gi.ge+1)%Ngt)], PMLTypeName[gi.pml_type], PCTypeName[gi.pc_type]); CHKERRQ(ierr);
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "The matrix is %s, continuity eq %s", (gi.is_symmetric ? "symmetric":"non-symmetric"), (gi.add_conteq ? "added":"not added")); CHKERRQ(ierr);
 		if (gi.add_conteq) {
 			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, " with factor %f", gi.factor_conteq); CHKERRQ(ierr);
@@ -1347,6 +1347,7 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 		/** Create the gradient-divergence operator. */
 		Mat GD;
 		ierr = createGDsym(&GD, gi); CHKERRQ(ierr);
+ierr = MatView(GD, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
 		ierr = MatDiagonalScale(GD, param, PETSC_NULL); CHKERRQ(ierr);
 		ierr = updateTimeStamp(VBDetail, ts, "GD matrix", gi); CHKERRQ(ierr);
 
@@ -1368,7 +1369,7 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 		ierr = MatAXPY(*A, gi.factor_conteq, GD, SUBSET_NONZERO_PATTERN); CHKERRQ(ierr);
 		ierr = MatDestroy(&GD); CHKERRQ(ierr);
 	}
-ierr = MatView(*A, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
+//ierr = MatView(*A, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
 
 
 	ierr = MatDiagonalScale(*A, paramMask, paramMask); CHKERRQ(ierr);  // omega^2*mu*eps is not subtracted yet, so the diagonal entries will be nonzero
