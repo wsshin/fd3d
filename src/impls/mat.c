@@ -1795,6 +1795,7 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 		//ierr = createGD(&GD, gi); CHKERRQ(ierr);
 		//ierr = createGD2(&GD, gi); CHKERRQ(ierr);
 		ierr = createGD3(&GD, gi); CHKERRQ(ierr);
+ierr = MatView(GD, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
 		ierr = MatDiagonalScale(GD, eps, PETSC_NULL); CHKERRQ(ierr);  // GD = eps grad[eps^-2 div()]; only for createGD3
 /*
 ierr = VecSet(inverse, 1.0); CHKERRQ(ierr);
@@ -1822,7 +1823,7 @@ ierr = MatDiagonalScale(GD, inverse, PETSC_NULL); CHKERRQ(ierr);
 		ierr = MatDestroy(&GD); CHKERRQ(ierr);
 	}
 
-ierr = MatView(*A, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
+//ierr = MatView(*A, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
 
 	ierr = MatDiagonalScale(*A, epsMask, epsMask); CHKERRQ(ierr);  // omega^2*mu*eps is not subtracted yet, so the diagonal entries will be nonzero
 	ierr = VecPointwiseMult(*b, epsMask, *b); CHKERRQ(ierr);  // force E = 0 on TruePEC.  comment this line to allow source on TruePEC
