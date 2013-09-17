@@ -2,6 +2,7 @@
 #include "mat.h"
 
 const char * const FieldTypeName[] = {"E", "H"};
+const char * const GridTypeName[] = {"primary", "dual"};
 const char * const PMLTypeName[] = {"SC-PML", "UPML"};
 const char * const PCTypeName[] = {"identity", "s-factor", "eps", "Jacobi"};
 
@@ -1225,7 +1226,7 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 	Mat CG, CGF; 
 
 	if (gi.verbose_level >= VBMedium) {
-		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Create the matrix for %s with %s, preconditioned by %s.\n", FieldTypeName[gi.x_type], PMLTypeName[gi.pml_type], PCTypeName[gi.pc_type]); CHKERRQ(ierr);
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Create matrix for %s on %s grid with %s, preconditioned by %s.\n", FieldTypeName[gi.x_type], GridTypeName[gi.ge], PMLTypeName[gi.pml_type], PCTypeName[gi.pc_type]); CHKERRQ(ierr);
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "The matrix is %s, continuity eq %s", (gi.is_symmetric ? "symmetric":"non-symmetric"), (gi.add_conteq ? "added":"not added")); CHKERRQ(ierr);
 		if (gi.add_conteq) {
 			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, " with factor %f", gi.factor_conteq); CHKERRQ(ierr);

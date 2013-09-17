@@ -42,8 +42,10 @@ PetscErrorCode setGridInfo(GridInfo *gi)
 	inputfile_id = H5Fopen(gi->inputfile_name, H5F_ACC_RDONLY, H5P_DEFAULT);
 
 	/** Import values defined in the input file. */
-	ierr = h5get_data(inputfile_id, "/f", H5T_NATIVE_DOUBLE, &gi->x_type); CHKERRQ(ierr);
-	ierr = h5get_data(inputfile_id, "/ge", H5T_NATIVE_DOUBLE, &gi->ge); CHKERRQ(ierr);
+	ierr = h5get_data(inputfile_id, "/f", H5T_NATIVE_DOUBLE, &temp_real); CHKERRQ(ierr);
+	gi->x_type = (PetscInt) temp_real;
+	ierr = h5get_data(inputfile_id, "/ge", H5T_NATIVE_DOUBLE, &temp_real); CHKERRQ(ierr);
+	gi->ge = (PetscInt) temp_real;
 	ierr = h5get_data(inputfile_id, "/lambda", H5T_NATIVE_DOUBLE, &gi->lambda); CHKERRQ(ierr);
 	ierr = h5get_data(inputfile_id, "/omega", H5T_NATIVE_DOUBLE, &gi->omega); CHKERRQ(ierr);  // if gi->omega is PetscScalar, its imaginary part is garbage, and can be different between processors, which generates an error
 	//ierr = h5get_data(inputfile_id, "/maxit", H5T_NATIVE_INT, &gi->max_iter); CHKERRQ(ierr);
