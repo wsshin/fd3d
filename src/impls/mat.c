@@ -511,7 +511,7 @@ PetscErrorCode createCGF(Mat *CGF, Mat CG, Mat GF, GridInfo gi)
  * ------------
  * Set the elements of Atemplate zeros.
  */
-PetscErrorCode setAtemplate_at(Mat Atemplate, FieldType ftype, Axis Pp, PetscInt i, PetscInt j, PetscInt k, GridInfo gi)
+PetscErrorCode setAtemplate_at(Mat Atemplate, Axis Pp, PetscInt i, PetscInt j, PetscInt k, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -534,7 +534,7 @@ Therefore, if Gq==Ey, then Fp==Ex and dr==dx, and so on. */
 	Axis Qq = (Axis)((Pp+1) % Naxis);  // if Pp==Xx, this is Yy
 	Axis Rr = (Axis)((Pp+2) % Naxis);  // if Pp==Xx, this is Zz
 
-	if (ftype==Htype) {
+	if ((gi.x_type==Etype && gi.ge==Prim) || (gi.x_type==Htype && gi.ge==Dual)) {
 		/** Set (x,y,z,axis) indices for the output field component Gp. */
 		/** indGp.c is the degree-of-freedom (dof) index; in FD3D used to indicate the direction of 
 		  the field component. */
@@ -603,8 +603,6 @@ Therefore, if Gq==Ey, then Fp==Ex and dr==dx, and so on. */
 		++coordFw[Pp]; --coordFw[Rr];
 		indFw[14].i = coordFw[Xx]; indFw[14].j = coordFw[Yy]; indFw[14].k = coordFw[Zz]; indFw[14].c = Rr;
 	} else {
-		assert(ftype==Etype);
-
 		/** Set (x,y,z,axis) indices for the output field component Gp. */
 		/** indGp.c is the degree-of-freedom (dof) index; in FD3D used to indicate the direction of 
 		  the field component. */
@@ -692,7 +690,7 @@ Therefore, if Gq==Ey, then Fp==Ex and dr==dx, and so on. */
  * -----
  * Set up Atemplate matrix that has zeros preset for the nonzero elements of A.
  */
-PetscErrorCode setAtemplate(Mat Atemplate, FieldType ftype, GridInfo gi)
+PetscErrorCode setAtemplate(Mat Atemplate, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -707,7 +705,7 @@ PetscErrorCode setAtemplate(Mat Atemplate, FieldType ftype, GridInfo gi)
 		for (j = oy; j < oy+ny; ++j) {
 			for (i = ox; i < ox+nx; ++i) {
 				for (axis = 0; axis < Naxis; ++axis) {
-					ierr = setAtemplate_at(Atemplate, ftype, (Axis)axis, i, j, k, gi);
+					ierr = setAtemplate_at(Atemplate, (Axis)axis, i, j, k, gi);
 				}
 			}
 		}
@@ -736,7 +734,7 @@ PetscErrorCode createAtemplate(Mat *Atemplate, GridInfo gi)
 	ierr = MatSeqAIJSetPreallocation(*Atemplate, 15, PETSC_NULL); CHKERRQ(ierr);
 	ierr = MatSetLocalToGlobalMapping(*Atemplate, gi.map, gi.map); CHKERRQ(ierr);
 	ierr = MatSetStencil(*Atemplate, Naxis, gi.Nlocal_g, gi.start_g, Naxis); CHKERRQ(ierr);
-	ierr = setAtemplate(*Atemplate, Etype, gi); CHKERRQ(ierr);
+	ierr = setAtemplate(*Atemplate, gi); CHKERRQ(ierr);
 	ierr = MatAssemblyBegin(*Atemplate, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 	ierr = MatAssemblyEnd(*Atemplate, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 
@@ -928,17 +926,16 @@ PetscErrorCode createGDsym(Mat *GD, GridInfo gi)
 	}
 
 	/** Set up the matrix DivF and FGrad, the divergence on F and gradient operator generating F. */
+	ierr = VecDuplicate(gi.vecTemp, &invNode); CHKERRQ(ierr);
 	ierr = VecPointwiseMult(invNode, epsNode, muNode); CHKERRQ(ierr);
 	if (gi.x_type == Etype) {
 		ierr = VecPointwiseMult(invNode, epsNode, invNode); CHKERRQ(ierr);
 		ierr = createDivE(&DivF, gi); CHKERRQ(ierr);
 		ierr = createEGrad(&FGrad, gi); CHKERRQ(ierr);
-		ierr = MatDiagonalScale(FGrad, epsNode, PETSC_NULL); CHKERRQ(ierr);
 	} else {
 		ierr = VecPointwiseMult(invNode, muNode, invNode); CHKERRQ(ierr);
 		ierr = createDivH(&DivF, gi); CHKERRQ(ierr);
 		ierr = createHGrad(&FGrad, gi); CHKERRQ(ierr);
-		ierr = MatDiagonalScale(FGrad, muNode, PETSC_NULL); CHKERRQ(ierr);
 	}
 
 	ierr = VecReciprocal(invNode); CHKERRQ(ierr);
@@ -1349,6 +1346,7 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 		/** Create the gradient-divergence operator. */
 		Mat GD;
 		ierr = createGDsym(&GD, gi); CHKERRQ(ierr);
+		ierr = MatDiagonalScale(GD, param, PETSC_NULL); CHKERRQ(ierr);
 		ierr = updateTimeStamp(VBDetail, ts, "GD matrix", gi); CHKERRQ(ierr);
 
 		/** Create b. */
@@ -1369,6 +1367,8 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 		ierr = MatAXPY(*A, gi.factor_conteq, GD, SUBSET_NONZERO_PATTERN); CHKERRQ(ierr);
 		ierr = MatDestroy(&GD); CHKERRQ(ierr);
 	}
+ierr = MatView(*A, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
+
 
 	ierr = MatDiagonalScale(*A, paramMask, paramMask); CHKERRQ(ierr);  // omega^2*mu*eps is not subtracted yet, so the diagonal entries will be nonzero
 	ierr = VecPointwiseMult(*b, paramMask, *b); CHKERRQ(ierr);  // force E = 0 on TruePEC.  comment this line to allow source on TruePEC
