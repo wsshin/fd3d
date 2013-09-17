@@ -1822,6 +1822,8 @@ ierr = MatDiagonalScale(GD, inverse, PETSC_NULL); CHKERRQ(ierr);
 		ierr = MatDestroy(&GD); CHKERRQ(ierr);
 	}
 
+ierr = MatView(*A, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
+
 	ierr = MatDiagonalScale(*A, epsMask, epsMask); CHKERRQ(ierr);  // omega^2*mu*eps is not subtracted yet, so the diagonal entries will be nonzero
 	ierr = VecPointwiseMult(*b, epsMask, *b); CHKERRQ(ierr);  // force E = 0 on TruePEC.  comment this line to allow source on TruePEC
 
