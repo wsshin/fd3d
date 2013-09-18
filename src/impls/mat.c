@@ -1,6 +1,10 @@
 #include <assert.h>
 #include "mat.h"
 
+//ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "I'm here!\n"); CHKERRQ(ierr);
+//ierr = VecView(vec, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
+//ierr = MatView(mat, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
+
 const char * const FieldTypeName[] = {"E", "H"};
 const char * const GridTypeName[] = {"primary", "dual"};
 const char * const PMLTypeName[] = {"SC-PML", "UPML"};
@@ -919,7 +923,6 @@ PetscErrorCode createGDsym(Mat *GD, GridInfo gi)
 
 	/** Set the inverse of the elementwise product of eps and mu vectors at nodes. */
 	ierr = createVecPETSc(&epsNode, "eps_node", gi); CHKERRQ(ierr);
-//ierr = VecView(epsNode, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
 	if (gi.has_mu) {
 		ierr = createVecPETSc(&muNode, "mu_node", gi); CHKERRQ(ierr);
 	} else {
@@ -1348,7 +1351,6 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 		/** Create the gradient-divergence operator. */
 		Mat GD;
 		ierr = createGDsym(&GD, gi); CHKERRQ(ierr);
-//ierr = MatView(GD, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
 		ierr = MatDiagonalScale(GD, param, PETSC_NULL); CHKERRQ(ierr);
 		ierr = updateTimeStamp(VBDetail, ts, "GD matrix", gi); CHKERRQ(ierr);
 
@@ -1370,8 +1372,6 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 		ierr = MatAXPY(*A, gi.factor_conteq, GD, SUBSET_NONZERO_PATTERN); CHKERRQ(ierr);
 		ierr = MatDestroy(&GD); CHKERRQ(ierr);
 	}
-//ierr = MatView(*A, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
-
 
 	ierr = MatDiagonalScale(*A, paramMask, paramMask); CHKERRQ(ierr);  // omega^2*mu*eps is not subtracted yet, so the diagonal entries will be nonzero
 	ierr = VecPointwiseMult(*b, paramMask, *b); CHKERRQ(ierr);  // force E = 0 on TruePEC.  comment this line to allow source on TruePEC
