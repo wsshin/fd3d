@@ -7,6 +7,7 @@
 #include "mat.h"
 #include "solver.h"
 #include "output.h"
+#include <assert.h>
 
 //ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "I'm here!\n"); CHKERRQ(ierr);
 //ierr = VecView(vec, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
@@ -154,13 +155,20 @@ PetscErrorCode main(int argc, char **argv)
 	  y = diag(right_precond) x
 	 */
 	Vec x;  // actually y in the above equation
-	if (gi.has_x0) {
-		ierr = createVecHDF5(&x, "/E0", gi); CHKERRQ(ierr);
+	if (gi.x0_type == GEN_GIVEN) {
+		ierr = createVecPETSc(&x, "F0", gi); CHKERRQ(ierr);
 		ierr = VecPointwiseMult(x, x, right_precond); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VBDetail, &ts, "supplied x0 initialization", gi); CHKERRQ(ierr);
 	} else {  // in this case, not preconditioning x is better
 		ierr = VecDuplicate(gi.vecTemp, &x); CHKERRQ(ierr);
-		ierr = VecSet(x, 0.0); CHKERRQ(ierr);
-		//ierr = VecSetRandom(x, PETSC_NULL); CHKERRQ(ierr);  // for random initial x
+		if (gi.x0_type == GEN_ZERO) {
+			ierr = VecSet(x, 0.0); CHKERRQ(ierr);
+			ierr = updateTimeStamp(VBDetail, &ts, "zero x0 initialization", gi); CHKERRQ(ierr);
+		} else {
+			assert(gi.x0_type == GEN_RAND);
+			ierr = VecSetRandom(x, PETSC_NULL); CHKERRQ(ierr);  // for random initial x
+			ierr = updateTimeStamp(VBDetail, &ts, "random x0 initialization", gi); CHKERRQ(ierr);
+		}
 //		ierr = VecPointwiseDivide(x, x, right_precond); CHKERRQ(ierr);
 
 		/** For initial condition trick */

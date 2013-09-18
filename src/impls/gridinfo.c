@@ -38,6 +38,8 @@ PetscErrorCode setGridInfo(GridInfo *gi)
 	PetscInt axis, gt;
 	PetscReal temp_real;
 	PetscReal temp_array[Naxis];
+	FILE *file;
+	char file_name[PETSC_MAX_PATH_LEN];
 	
 	inputfile_id = H5Fopen(gi->inputfile_name, H5F_ACC_RDONLY, H5P_DEFAULT);
 
@@ -48,6 +50,8 @@ PetscErrorCode setGridInfo(GridInfo *gi)
 	gi->ge = (PetscInt) temp_real;
 	ierr = h5get_data(inputfile_id, "/lambda", H5T_NATIVE_DOUBLE, &gi->lambda); CHKERRQ(ierr);
 	ierr = h5get_data(inputfile_id, "/omega", H5T_NATIVE_DOUBLE, &gi->omega); CHKERRQ(ierr);  // if gi->omega is PetscScalar, its imaginary part is garbage, and can be different between processors, which generates an error
+	ierr = h5get_data(inputfile_id, "/x0_type", H5T_NATIVE_DOUBLE, &temp_real); CHKERRQ(ierr);
+	gi->x0_type = (PetscInt) temp_real;
 	//ierr = h5get_data(inputfile_id, "/maxit", H5T_NATIVE_INT, &gi->max_iter); CHKERRQ(ierr);
 	ierr = h5get_data(inputfile_id, "/maxit", H5T_NATIVE_DOUBLE, &temp_real); CHKERRQ(ierr);
 	gi->max_iter = (PetscInt) temp_real;
@@ -168,6 +172,7 @@ ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\tN = [%d, %d, %d]\n", gi->N[Xx],
 */
 
 	/** Set the flag for the initial guess solution. */
+/*
 	htri_t isE0;
 	ierr = PetscStrcpy(datasetname, "/E0"); CHKERRQ(ierr);
 	isE0 = H5Lexists(inputfile_id, datasetname, H5P_DEFAULT);
@@ -176,8 +181,21 @@ ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\tN = [%d, %d, %d]\n", gi->N[Xx],
 	} else {
 		gi->has_x0 = PETSC_FALSE;
 	}
+*/
+/*
+	ierr = PetscStrcpy(file_name, gi->input_name); CHKERRQ(ierr);
+	ierr = PetscStrcat(file_name, ".F0"); CHKERRQ(ierr);
+	file = fopen(file_name, "r");  // in a project directory
+	if (file) {
+		gi->has_x0 = PETSC_TRUE;
+		fclose(file);
+	} else {
+		gi->has_x0 = PETSC_FALSE;
+	}
+*/
 
 	/** Set the flag for the reference solution. */
+/*
 	htri_t isEref; 
 	ierr = PetscStrcpy(datasetname, "/Eref"); CHKERRQ(ierr);
 	isEref = H5Lexists(inputfile_id, datasetname, H5P_DEFAULT);
@@ -187,18 +205,19 @@ ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\tN = [%d, %d, %d]\n", gi->N[Xx],
 	} else {
 		gi->has_xref = PETSC_FALSE;
 	}
-
-	/** Set the flag for the incident field distribution for TF/SF. */
-	htri_t isEinc;
-	ierr = PetscStrcpy(datasetname, "/Einc"); CHKERRQ(ierr);
-	isEinc = H5Lexists(inputfile_id, datasetname, H5P_DEFAULT);
-	if (isEinc && isEinc >= 0) {
-		gi->has_xinc = PETSC_TRUE;
+*/
+	ierr = PetscStrcpy(file_name, gi->input_name); CHKERRQ(ierr);
+	ierr = PetscStrcat(file_name, ".Fref"); CHKERRQ(ierr);
+	file = fopen(file_name, "r");  // in a project directory
+	if (file) {
+		gi->has_xref = PETSC_TRUE;
+		ierr = createVecPETSc(&gi->xref, "Fref", *gi);
+		fclose(file);
 	} else {
-		gi->has_xinc = PETSC_FALSE;
+		gi->has_xref = PETSC_FALSE;
 	}
 
-   status = H5Fclose(inputfile_id);
+	status = H5Fclose(inputfile_id);
 
 	PetscFunctionReturn(0);
 }
@@ -263,6 +282,24 @@ PetscErrorCode setOptions(GridInfo *gi)
 		} else if (!(ierr = PetscStrcasecmp(opt_str, "H", &is_target_value)) && is_target_value) {
 			CHKERRQ(ierr);
 			gi->x_type = Htype;
+		} else {
+			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Unsupported option flag in %s; proceed with the default value.\n", opt_name); CHKERRQ(ierr);
+		}
+	}
+
+	/** F0 type */
+	opt_name = "-fd3d_x0_type";
+	ierr = PetscOptionsGetString(PETSC_NULL, opt_name, opt_str, PETSC_MAX_PATH_LEN-1, &has_opt); CHKERRQ(ierr);  
+	if (has_opt) {
+		if (!(ierr = PetscStrcasecmp(opt_str, "zero", &is_target_value)) && is_target_value) {
+			CHKERRQ(ierr);
+			gi->x0_type = GEN_ZERO;
+		} else if (!(ierr = PetscStrcasecmp(opt_str, "rand", &is_target_value)) && is_target_value) {
+			CHKERRQ(ierr);
+			gi->x0_type = GEN_RAND;
+		} else if (!(ierr = PetscStrcasecmp(opt_str, "given", &is_target_value)) && is_target_value) {
+			CHKERRQ(ierr);
+			gi->x0_type = GEN_GIVEN;
 		} else {
 			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Unsupported option flag in %s; proceed with the default value.\n", opt_name); CHKERRQ(ierr);
 		}

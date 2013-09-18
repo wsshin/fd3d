@@ -28,10 +28,8 @@ typedef struct {
 	PetscReal omega;  // normalized angular frequency
 
 	PetscBool has_mu;  // PETSC_TRUE if it has mu; PETSC_FALSE otherwise
-	PetscBool has_x0;  // PETSC_TRUE if it has x0; PETSC_FALSE otherwise
 	PetscBool has_xref;  // PETSC_TRUE if it has xref; PETSC_FALSE otherwise
 	Vec xref;  // reference solution
-	PetscBool has_xinc;  // PETSC_TRUE if it has xinc; PETSC_FALSE otherwise
 	PetscReal norm_xref;  // infinity norm of xref
 	PetscInt max_iter;  // maximum number of iteration of BiCG
 	PetscReal tol;  // tolerance of BiCG
@@ -40,6 +38,7 @@ typedef struct {
 	Vec vecTemp; // template vector.  Also used as a temporary storage of a vector
 	ISLocalToGlobalMapping map;  // local-to-global index mapping
 	FieldType x_type;  // field type of the solution of the equation to formulate
+	F0Type x0_type;  // how to generate x0
 	PMLType pml_type;
 	KrylovType krylov_type;
 	PrecondType pc_type;
