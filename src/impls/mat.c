@@ -1396,6 +1396,7 @@ PetscErrorCode createGD3(Mat *GD, GridInfo gi)
 	assert(gi.has_epsNode);
 	//ierr = createVecHDF5(&invEps2Node, "/eps_node", gi); CHKERRQ(ierr);
 	ierr = createVecPETSc(&invEps2Node, "eps_node", gi); CHKERRQ(ierr);
+//ierr = VecView(invEps2Node, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
 	ierr = VecPointwiseMult(invEps2Node, invEps2Node, invEps2Node); CHKERRQ(ierr);
 	ierr = VecReciprocal(invEps2Node); CHKERRQ(ierr);
 	ierr = MatDiagonalScale(DivE, invEps2Node, PETSC_NULL); CHKERRQ(ierr);
@@ -1795,7 +1796,7 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Grid
 		//ierr = createGD(&GD, gi); CHKERRQ(ierr);
 		//ierr = createGD2(&GD, gi); CHKERRQ(ierr);
 		ierr = createGD3(&GD, gi); CHKERRQ(ierr);
-ierr = MatView(GD, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
+//ierr = MatView(GD, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
 		ierr = MatDiagonalScale(GD, eps, PETSC_NULL); CHKERRQ(ierr);  // GD = eps grad[eps^-2 div()]; only for createGD3
 /*
 ierr = VecSet(inverse, 1.0); CHKERRQ(ierr);
