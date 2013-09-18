@@ -919,6 +919,7 @@ PetscErrorCode createGDsym(Mat *GD, GridInfo gi)
 
 	/** Set the inverse of the elementwise product of eps and mu vectors at nodes. */
 	ierr = createVecPETSc(&epsNode, "eps_node", gi); CHKERRQ(ierr);
+//ierr = VecView(epsNode, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
 	if (gi.has_mu) {
 		ierr = createVecPETSc(&muNode, "mu_node", gi); CHKERRQ(ierr);
 	} else {
@@ -1347,7 +1348,7 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 		/** Create the gradient-divergence operator. */
 		Mat GD;
 		ierr = createGDsym(&GD, gi); CHKERRQ(ierr);
-ierr = MatView(GD, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
+//ierr = MatView(GD, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
 		ierr = MatDiagonalScale(GD, param, PETSC_NULL); CHKERRQ(ierr);
 		ierr = updateTimeStamp(VBDetail, ts, "GD matrix", gi); CHKERRQ(ierr);
 
