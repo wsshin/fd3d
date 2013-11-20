@@ -5,6 +5,8 @@
 #include "type.h"
 
 #include "petsc.h"
+#include "petscviewerhdf5.h"   
+
 
 typedef struct {
 	PetscScalar comp[Naxis];  // x,y,z component of field

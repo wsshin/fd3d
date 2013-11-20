@@ -463,7 +463,7 @@ PetscErrorCode bicg_component_kernel(const Mat DivE, const Mat CH, const Mat CE,
 Vec temp, temp2;
 ierr = VecDuplicate(x, &temp); CHKERRQ(ierr);
 ierr = VecDuplicate(x, &temp2); CHKERRQ(ierr);
-PetscReal norm_temp;
+//PetscReal norm_temp;
 
 	/*
 	   PetscReal norm;

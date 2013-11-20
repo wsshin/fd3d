@@ -246,7 +246,7 @@ PetscErrorCode main(int argc, char **argv)
 
 		/** Override any KSP settings (method, PC, monitor, etc) with options described in "option_file", if any. */ 
 		ierr = KSPSetFromOptions(ksp); CHKERRQ(ierr);
-		const KSPType type;
+		KSPType type;
 		ierr = KSPGetType(ksp, &type); CHKERRQ(ierr);
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "actual algorithm: KSP %s\n", type); CHKERRQ(ierr);
 		/** Set up the monitor of the iteration process. */
