@@ -2,16 +2,16 @@
 # the queue to be used.
 #PBS -q normal
 # specify your project allocation
-#PBS -A TG-MCA03S007
+#PBS -A YOUR_PROJECT_NUMBER
 # number of nodes and number of processors per node requested
 #PBS -l nodes=8:ppn=32
 #PBS -l walltime=00:30:00
 #PBS -V
 #PBS -m be
-#PBS -M wsshin@stanford.edu
+#PBS -M youremail@yourschool.edu
 
 export NP=`wc -l ${PBS_NODEFILE} | cut -d'/' -f1`
 
 cd $PBS_O_WORKDIR
-mpirun -n ${NP} -hostfile $PBS_NODEFILE fd3d -i unidir_2disk
+mpirun -n ${NP} -hostfile $PBS_NODEFILE fd3d -i INPUT_NAME
 
