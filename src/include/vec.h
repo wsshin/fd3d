@@ -19,39 +19,53 @@ PetscErrorCode createVecPETSc(Vec *vec, const char *dataset_name, GridInfo gi);
 PetscErrorCode createFieldArray(Vec *field, FunctionSetComponentAt setComponentAt, GridInfo gi);
 
 /**
- * set_scale_Epec_at
+ * set_mask_prim_at
  * -------------
- * Set an element of the vector that scales E fields on PMC by a factor of 2.
+ * Mask the primary fields at the negative boundaries according to their boundary conditions.
  */
-PetscErrorCode set_scale_Epec_at(PetscScalar *scale_Epec_value, Axis axis, const PetscInt ind[], GridInfo *gi);
+PetscErrorCode set_mask_prim_at(PetscScalar *mask_prim_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
- * set_sparam_mu_at
+ * set_mask_dual_at
  * -------------
- * Set an element of the vector of s-parameter factors for mu.
+ * Mask the dual fields at the negative boundaries according to their boundary conditions.
  */
-PetscErrorCode set_sparam_mu_at(PetscScalar *sparam_mu_value, Axis axis, const PetscInt ind[], GridInfo *gi);
+PetscErrorCode set_mask_dual_at(PetscScalar *mask_dual_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
- * set_dparam_mu_at
+ * set_double_Fbc_at
  * -------------
- * Set an element of the vector of d-parameter factors (dy*dz/dx, dz*dx/dy, dx*dy/dz) for mu.
+ * Set an element of the vector that scales fields at boundaries by a factor of 2.
  */
-PetscErrorCode set_dparam_mu_at(PetscScalar *dparam_mu_value, Axis axis, const PetscInt ind[], GridInfo *gi);
+PetscErrorCode set_double_Fbc_at(PetscScalar *double_Fbc_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
- * set_sparam_eps_at
+ * set_sfactor_mu_at
  * -------------
- * Set an element of the vector of s-parameter factors for eps.
+ * Set an element of the vector of s-factors for mu.
  */
-PetscErrorCode set_sparam_eps_at(PetscScalar *sparam_eps_value, Axis axis, const PetscInt ind[], GridInfo *gi);
+PetscErrorCode set_sfactor_mu_at(PetscScalar *sfactor_mu_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
- * set_dparam_eps_at
+ * set_dfactor_mu_at
  * -------------
- * Set an element of the vector of d-parameter factors (dy*dz/dx, dz*dx/dy, dx*dy/dz) for eps.
+ * Set an element of the vector of d-factors (dy*dz/dx, dz*dx/dy, dx*dy/dz) for mu.
  */
-PetscErrorCode set_dparam_eps_at(PetscScalar *dparam_eps_value, Axis axis, const PetscInt ind[], GridInfo *gi);
+PetscErrorCode set_dfactor_mu_at(PetscScalar *dfactor_mu_value, Axis axis, const PetscInt ind[], GridInfo *gi);
+
+/**
+ * set_sfactor_eps_at
+ * -------------
+ * Set an element of the vector of s-factors for eps.
+ */
+PetscErrorCode set_sfactor_eps_at(PetscScalar *sfactor_eps_value, Axis axis, const PetscInt ind[], GridInfo *gi);
+
+/**
+ * set_dfactor_eps_at
+ * -------------
+ * Set an element of the vector of d-factors (dy*dz/dx, dz*dx/dy, dx*dy/dz) for eps.
+ */
+PetscErrorCode set_dfactor_eps_at(PetscScalar *dfactor_eps_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
  * sqrtVec
@@ -99,20 +113,20 @@ PetscErrorCode set_dLe_at(PetscScalar *dLe_value, Axis axis, const PetscInt ind[
 PetscErrorCode set_dLh_at(PetscScalar *dLh_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
- * set_sparamLe_at
+ * set_sfactorLe_at
  * -------------
  * Set an element of the vector whose elements are length stretch factors centered by E-field 
  * components.
  */
-PetscErrorCode set_sparamLe_at(PetscScalar *sparamLe_value, Axis axis, const PetscInt ind[], GridInfo *gi);
+PetscErrorCode set_sfactorLe_at(PetscScalar *sfactorLe_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
- * set_sparamLh_at
+ * set_sfactorLh_at
  * -------------
  * Set an element of the vector whose elements are length stretch factors centered by H-field 
  * components.
  */
-PetscErrorCode set_sparamLh_at(PetscScalar *sparamLh_value, Axis axis, const PetscInt ind[], GridInfo *gi);
+PetscErrorCode set_sfactorLh_at(PetscScalar *sfactorLh_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
  * set_dSe_at
@@ -129,20 +143,20 @@ PetscErrorCode set_dSe_at(PetscScalar *dSe_value, Axis axis, const PetscInt ind[
 PetscErrorCode set_dSh_at(PetscScalar *dSh_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
- * set_sparamSe_at
+ * set_sfactorSe_at
  * -------------
  * Set an element of the vector whose elements are the area stretch factors centered by E-field 
  * components.
  */
-PetscErrorCode set_sparamSe_at(PetscScalar *sparamSe_value, Axis axis, const PetscInt ind[], GridInfo *gi);
+PetscErrorCode set_sfactorSe_at(PetscScalar *sfactorSe_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
- * set_sparamSh_at
+ * set_sfactorSh_at
  * -------------
  * Set an element of the vector whose elements are the area stretch factors centered by H-field 
  * components.
  */
-PetscErrorCode set_sparamSh_at(PetscScalar *sparamSh_value, Axis axis, const PetscInt ind[], GridInfo *gi);
+PetscErrorCode set_sfactorSh_at(PetscScalar *sfactorSh_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
  * set_index_at

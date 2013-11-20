@@ -10,7 +10,7 @@
  * ------
  * Output the E and H fields.
  */
-PetscErrorCode output(char *output_name, FieldType x_type, const Vec x, const Mat HE)
+PetscErrorCode output(char *output_name, const Vec x, const Mat CF, const Vec conjParam, const Vec conjSrc, const GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -34,8 +34,18 @@ PetscErrorCode output(char *output_name, FieldType x_type, const Vec x, const Ma
 	ierr = PetscStrcat(e_file, e_extension); CHKERRQ(ierr);
 
 	Vec y;  // H field vector if x_type == Etype
-	ierr = VecDuplicate(x, &y); CHKERRQ(ierr);
-	ierr = MatMult(HE, x, y); CHKERRQ(ierr);
+	ierr = VecDuplicate(gi.vecTemp, &y); CHKERRQ(ierr);
+	ierr = VecCopy(conjSrc, y); CHKERRQ(ierr);
+	if (gi.x_type==Etype) {
+		ierr = MatMultAdd(CF, x, y, y); CHKERRQ(ierr);
+		ierr = VecScale(y, -1.0/PETSC_i/gi.omega); CHKERRQ(ierr);
+	} else {
+		ierr = VecScale(y, -1.0); CHKERRQ(ierr);
+		ierr = MatMultAdd(CF, x, y, y); CHKERRQ(ierr);
+		ierr = VecScale(y, 1.0/PETSC_i/gi.omega); CHKERRQ(ierr);
+	}
+	ierr = VecPointwiseDivide(y, y, conjParam);
+
 	PetscViewer viewer;
 
 	//viewer = PETSC_VIEWER_STDOUT_WORLD;
@@ -44,11 +54,11 @@ PetscErrorCode output(char *output_name, FieldType x_type, const Vec x, const Ma
 	/** Write the E-field file. */
 	ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD, e_file, FILE_MODE_WRITE, &viewer); CHKERRQ(ierr);
 	ierr = PetscViewerHDF5PushGroup(viewer, "/");
-	if (x_type==Etype) {
+	if (gi.x_type==Etype) {
 		ierr = PetscObjectSetName((PetscObject) x, "E"); CHKERRQ(ierr);
 		ierr = VecView(x, viewer); CHKERRQ(ierr);
 	} else {
-		assert(x_type==Htype);
+		assert(gi.x_type==Htype);
 		ierr = PetscObjectSetName((PetscObject) y, "E"); CHKERRQ(ierr);
 		ierr = VecView(y, viewer); CHKERRQ(ierr);
 	}
@@ -57,11 +67,11 @@ PetscErrorCode output(char *output_name, FieldType x_type, const Vec x, const Ma
 	/** Write the H-field file. */
 	ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD, h_file, FILE_MODE_WRITE, &viewer); CHKERRQ(ierr);
 	ierr = PetscViewerHDF5PushGroup(viewer, "/");
-	if (x_type==Etype) {
+	if (gi.x_type==Etype) {
 		ierr = PetscObjectSetName((PetscObject) y, "H"); CHKERRQ(ierr);
 		ierr = VecView(y, viewer); CHKERRQ(ierr);
 	} else {
-		assert(x_type==Htype);
+		assert(gi.x_type==Htype);
 		ierr = PetscObjectSetName((PetscObject) x, "H"); CHKERRQ(ierr);
 		ierr = VecView(x, viewer); CHKERRQ(ierr);
 	}
@@ -143,7 +153,7 @@ PetscErrorCode output_singular(char *output_name, const Vec u, const Vec v)
  * ------
  * Output the matrices and vectors that can be used in MATLAB to solve various problems.
  */
-PetscErrorCode output_mat_and_vec(const Mat A, const Vec b, const Vec right_precond, const Mat HE, const GridInfo gi)
+PetscErrorCode output_mat_and_vec(const Mat A, const Vec b, const Vec right_precond, const Mat CF, const GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -154,7 +164,7 @@ PetscErrorCode output_mat_and_vec(const Mat A, const Vec b, const Vec right_prec
 	const char *A_extension = "_A";
 	const char *b_extension = "_b";
 	const char *precond_extension = "_pR";
-	const char *HE_extension = "_HE";
+	const char *CF_extension = "_CF";
 
 	//ierr = PetscStrcpy(output_name_prefixed, getenv("FD3D_ROOT")); CHKERRQ(ierr);
 	//ierr = PetscStrcat(output_name_prefixed, prefix); CHKERRQ(ierr);
@@ -165,7 +175,7 @@ PetscErrorCode output_mat_and_vec(const Mat A, const Vec b, const Vec right_prec
 	char A_file[PETSC_MAX_PATH_LEN];
 	char b_file[PETSC_MAX_PATH_LEN];
 	char precond_file[PETSC_MAX_PATH_LEN];
-	char HE_file[PETSC_MAX_PATH_LEN];
+	char CF_file[PETSC_MAX_PATH_LEN];
 
 	ierr = PetscStrcpy(ind_file, output_name_prefixed); CHKERRQ(ierr);
 	ierr = PetscStrcat(ind_file, ind_extension); CHKERRQ(ierr);
@@ -175,8 +185,8 @@ PetscErrorCode output_mat_and_vec(const Mat A, const Vec b, const Vec right_prec
 	ierr = PetscStrcat(b_file, b_extension); CHKERRQ(ierr);
 	ierr = PetscStrcpy(precond_file, output_name_prefixed); CHKERRQ(ierr);
 	ierr = PetscStrcat(precond_file, precond_extension); CHKERRQ(ierr);
-	ierr = PetscStrcpy(HE_file, output_name_prefixed); CHKERRQ(ierr);
-	ierr = PetscStrcat(HE_file, HE_extension); CHKERRQ(ierr);
+	ierr = PetscStrcpy(CF_file, output_name_prefixed); CHKERRQ(ierr);
+	ierr = PetscStrcat(CF_file, CF_extension); CHKERRQ(ierr);
 
 	PetscViewer viewer;
 
@@ -232,12 +242,12 @@ PetscErrorCode output_mat_and_vec(const Mat A, const Vec b, const Vec right_prec
 	ierr = VecView(right_precond, viewer); CHKERRQ(ierr);
 	ierr = PetscViewerDestroy(&viewer); CHKERRQ(ierr);
 
-	/** Write the E-to-H converter matrix HE. */
+	/** Write the E-to-H converter matrix CF. */
 	ierr = PetscViewerCreate(PETSC_COMM_WORLD, &viewer); CHKERRQ(ierr);
 	ierr = PetscViewerSetType(viewer, PETSCVIEWERBINARY); CHKERRQ(ierr);
 	ierr = PetscViewerFileSetMode(viewer, FILE_MODE_WRITE); CHKERRQ(ierr);
-	ierr = PetscViewerFileSetName(viewer, HE_file); CHKERRQ(ierr);
-	ierr = MatView(HE, viewer); CHKERRQ(ierr);
+	ierr = PetscViewerFileSetName(viewer, CF_file); CHKERRQ(ierr);
+	ierr = MatView(CF, viewer); CHKERRQ(ierr);
 	ierr = PetscViewerDestroy(&viewer); CHKERRQ(ierr);
 
 	PetscFunctionReturn(0);
@@ -271,7 +281,7 @@ PetscErrorCode monitor_relres(KSP ksp, PetscInt n, PetscReal norm_r, void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "monitorRelres"
-PetscErrorCode monitorRelres(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, GridInfo *gi)
+PetscErrorCode monitorRelres(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat CF, const Vec conjParam, const Vec conjSrc, GridInfo *gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -329,7 +339,7 @@ PetscErrorCode monitorRelres(const VerboseLevel vl, const Vec x, const Vec right
 
 #undef __FUNCT__
 #define __FUNCT__ "monitorRelerr"
-PetscErrorCode monitorRelerr(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, GridInfo *gi)
+PetscErrorCode monitorRelerr(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat CF, const Vec conjParam, const Vec conjSrc, GridInfo *gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -351,7 +361,7 @@ PetscErrorCode monitorRelerr(const VerboseLevel vl, const Vec x, const Vec right
 
 #undef __FUNCT__
 #define __FUNCT__ "monitorSnapshot"
-PetscErrorCode monitorSnapshot(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, GridInfo *gi)
+PetscErrorCode monitorSnapshot(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat CF, const Vec conjParam, const Vec conjSrc, GridInfo *gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -368,7 +378,7 @@ PetscErrorCode monitorSnapshot(const VerboseLevel vl, const Vec x, const Vec rig
 		ierr = PetscStrcat(snapshot_name, num_iter_str); CHKERRQ(ierr);
 		ierr = VecCopy(x, x_snapshot); CHKERRQ(ierr);
 		ierr = VecPointwiseDivide(x_snapshot, x_snapshot, right_precond); CHKERRQ(ierr);
-		ierr = output(snapshot_name, gi->x_type, x_snapshot, HE); CHKERRQ(ierr);
+		ierr = output(snapshot_name, x_snapshot, CF, conjParam, conjSrc, *gi); CHKERRQ(ierr);
 	}
 
 	PetscFunctionReturn(0);
@@ -376,19 +386,19 @@ PetscErrorCode monitorSnapshot(const VerboseLevel vl, const Vec x, const Vec rig
 
 #undef __FUNCT__
 #define __FUNCT__ "monitorAll"
-PetscErrorCode monitorAll(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, GridInfo *gi)
+PetscErrorCode monitorAll(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat CF, const Vec conjParam, const Vec conjSrc, GridInfo *gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
 
 
 	if (gi->has_xref) {
-		ierr = monitorRelerr(vl, x, right_precond, num_iter, rel_res, HE, gi); CHKERRQ(ierr);
+		ierr = monitorRelerr(vl, x, right_precond, num_iter, rel_res, CF, conjParam, conjSrc, gi); CHKERRQ(ierr);
 	} else {
-		ierr = monitorRelres(vl, x, right_precond, num_iter, rel_res, HE, gi); CHKERRQ(ierr);
+		ierr = monitorRelres(vl, x, right_precond, num_iter, rel_res, CF, conjParam, conjSrc, gi); CHKERRQ(ierr);
 	}
 
-	ierr = monitorSnapshot(vl, x, right_precond, num_iter, rel_res, HE, gi); CHKERRQ(ierr);
+	ierr = monitorSnapshot(vl, x, right_precond, num_iter, rel_res, CF, conjParam, conjSrc, gi); CHKERRQ(ierr);
 
 	PetscFunctionReturn(0);
 }

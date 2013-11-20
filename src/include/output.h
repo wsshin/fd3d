@@ -10,21 +10,14 @@ typedef struct {
 	GridInfo *gi;
 } MonitorCtx;
 
-typedef PetscErrorCode (*MonitorIteration)(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, GridInfo *gi);
-
-/**
- * output_h5
- * ------
- * Output the E and H fields to an HDF5 file.
- */
-PetscErrorCode output_h5(char *output_name, FieldType x_type, const Vec x, const Mat HE);
+typedef PetscErrorCode (*MonitorIteration)(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo *gi);
 
 /**
  * output
  * ------
  * Output the E and H fields.
  */
-PetscErrorCode output(char *output_name, FieldType x_type, const Vec x, const Mat HE);
+PetscErrorCode output(char *output_name, const Vec x, const Mat GF, const Vec conjParam, const Vec conjSrc, const GridInfo gi);
 
 /**
  * output_singular
@@ -47,12 +40,12 @@ PetscErrorCode output_mat_and_vec(const Mat A, const Vec b, const Vec right_prec
  */
 PetscErrorCode monitor_relres(KSP ksp, PetscInt n, PetscReal norm_r, void *ctx);
 
-PetscErrorCode monitorRelres(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, GridInfo *gi);
+PetscErrorCode monitorRelres(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo *gi);
 
-PetscErrorCode monitorRelerr(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, GridInfo *gi);
+PetscErrorCode monitorRelerr(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo *gi);
 
-PetscErrorCode monitorSnapshot(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, GridInfo *gi);
+PetscErrorCode monitorSnapshot(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo *gi);
 
-PetscErrorCode monitorAll(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, GridInfo *gi);
+PetscErrorCode monitorAll(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo *gi);
 
 #endif

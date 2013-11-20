@@ -35,16 +35,23 @@ PetscErrorCode setGridInfo(GridInfo *gi)
 
 	hid_t inputfile_id;
 	herr_t status;
-	PetscInt axis, sign;
+	PetscInt axis, gt;
 	PetscReal temp_real;
 	PetscReal temp_array[Naxis];
-	PetscReal temp_mat[Naxis][Nsign];
+	FILE *file;
+	char file_name[PETSC_MAX_PATH_LEN];
 	
 	inputfile_id = H5Fopen(gi->inputfile_name, H5F_ACC_RDONLY, H5P_DEFAULT);
 
 	/** Import values defined in the input file. */
+	ierr = h5get_data(inputfile_id, "/f", H5T_NATIVE_DOUBLE, &temp_real); CHKERRQ(ierr);
+	gi->x_type = (PetscInt) temp_real;
+	ierr = h5get_data(inputfile_id, "/ge", H5T_NATIVE_DOUBLE, &temp_real); CHKERRQ(ierr);
+	gi->ge = (PetscInt) temp_real;
 	ierr = h5get_data(inputfile_id, "/lambda", H5T_NATIVE_DOUBLE, &gi->lambda); CHKERRQ(ierr);
 	ierr = h5get_data(inputfile_id, "/omega", H5T_NATIVE_DOUBLE, &gi->omega); CHKERRQ(ierr);  // if gi->omega is PetscScalar, its imaginary part is garbage, and can be different between processors, which generates an error
+	ierr = h5get_data(inputfile_id, "/x0_type", H5T_NATIVE_DOUBLE, &temp_real); CHKERRQ(ierr);
+	gi->x0_type = (PetscInt) temp_real;
 	//ierr = h5get_data(inputfile_id, "/maxit", H5T_NATIVE_INT, &gi->max_iter); CHKERRQ(ierr);
 	ierr = h5get_data(inputfile_id, "/maxit", H5T_NATIVE_DOUBLE, &temp_real); CHKERRQ(ierr);
 	gi->max_iter = (PetscInt) temp_real;
@@ -55,11 +62,9 @@ PetscErrorCode setGridInfo(GridInfo *gi)
 		gi->N[axis] = (PetscInt) temp_array[axis];
 	}
 	//ierr = h5get_data(inputfile_id, "/bc", H5T_NATIVE_INT, gi->bc); CHKERRQ(ierr);
-	ierr = h5get_data(inputfile_id, "/bc", H5T_NATIVE_DOUBLE, temp_mat); CHKERRQ(ierr);
+	ierr = h5get_data(inputfile_id, "/bc", H5T_NATIVE_DOUBLE, temp_array); CHKERRQ(ierr);
 	for (axis = 0; axis < Naxis; ++axis) {
-		for (sign = 0; sign < Nsign; ++sign) {
-			gi->bc[axis][sign] = (PetscInt) temp_mat[axis][sign];
-		}
+		gi->bc[axis] = (PetscInt) temp_array[axis];
 	}
 
 	PetscReal e_ikL[Naxis][Nri];
@@ -79,42 +84,30 @@ ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\tN = [%d, %d, %d]\n", gi->N[Xx],
 */
 
 	const char *w = "xyz";
+	const char * const gtname[] = {"_prim", "_dual"};
+
 	char datasetname[PETSC_MAX_PATH_LEN];
 	for (axis = 0; axis < Naxis; ++axis) {
-		PetscReal temp[gi->N[axis] * Nri];
-		ierr = PetscMalloc6(
-			gi->N[axis], PetscScalar, &gi->d_prim[axis],
-			gi->N[axis], PetscScalar, &gi->d_dual[axis],
-			gi->N[axis], PetscScalar, &gi->s_prim[axis],
-			gi->N[axis], PetscScalar, &gi->s_dual[axis],
-			gi->N[axis], PetscScalar, &gi->d_prim_orig[axis],
-			gi->N[axis], PetscScalar, &gi->d_dual_orig[axis]); CHKERRQ(ierr);
+		for (gt = 0; gt < Ngt; ++gt) {
+			PetscReal temp[gi->N[axis] * Nri];
+			ierr = PetscMalloc3(
+					gi->N[axis], PetscScalar, &gi->dl[axis][gt],
+					gi->N[axis], PetscScalar, &gi->s_factor[axis][gt],
+					gi->N[axis], PetscScalar, &gi->dl_orig[axis][gt]); CHKERRQ(ierr);
 
-		ierr = PetscStrcpy(datasetname, "/d"); CHKERRQ(ierr);
-		ierr = append_char(datasetname, w[axis]); CHKERRQ(ierr);
-		ierr = PetscStrcat(datasetname, "_prim"); CHKERRQ(ierr);
-		ierr = h5get_data(inputfile_id, datasetname, H5T_NATIVE_DOUBLE, temp); CHKERRQ(ierr);
-		ierr = ri2c(temp, gi->d_prim[axis], gi->N[axis]); CHKERRQ(ierr);
-		ierr = ri2c(temp, gi->d_prim_orig[axis], gi->N[axis]); CHKERRQ(ierr);
+			ierr = PetscStrcpy(datasetname, "/d"); CHKERRQ(ierr);
+			ierr = append_char(datasetname, w[axis]); CHKERRQ(ierr);
+			ierr = PetscStrcat(datasetname, gtname[gt]); CHKERRQ(ierr);
+			ierr = h5get_data(inputfile_id, datasetname, H5T_NATIVE_DOUBLE, temp); CHKERRQ(ierr);
+			ierr = ri2c(temp, gi->dl[axis][gt], gi->N[axis]); CHKERRQ(ierr);
+			ierr = ri2c(temp, gi->dl_orig[axis][gt], gi->N[axis]); CHKERRQ(ierr);
 
-		ierr = PetscStrcpy(datasetname, "/d"); CHKERRQ(ierr);
-		ierr = append_char(datasetname, w[axis]); CHKERRQ(ierr);
-		ierr = PetscStrcat(datasetname, "_dual"); CHKERRQ(ierr);
-		ierr = h5get_data(inputfile_id, datasetname, H5T_NATIVE_DOUBLE, temp); CHKERRQ(ierr);
-		ierr = ri2c(temp, gi->d_dual[axis], gi->N[axis]); CHKERRQ(ierr);
-		ierr = ri2c(temp, gi->d_dual_orig[axis], gi->N[axis]); CHKERRQ(ierr);
-
-		ierr = PetscStrcpy(datasetname, "/s"); CHKERRQ(ierr);
-		ierr = append_char(datasetname, w[axis]); CHKERRQ(ierr);
-		ierr = PetscStrcat(datasetname, "_prim"); CHKERRQ(ierr);
-		ierr = h5get_data(inputfile_id, datasetname, H5T_NATIVE_DOUBLE, temp); CHKERRQ(ierr);
-		ierr = ri2c(temp, gi->s_prim[axis], gi->N[axis]); CHKERRQ(ierr);
-
-		ierr = PetscStrcpy(datasetname, "/s"); CHKERRQ(ierr);
-		ierr = append_char(datasetname, w[axis]); CHKERRQ(ierr);
-		ierr = PetscStrcat(datasetname, "_dual"); CHKERRQ(ierr);
-		ierr = h5get_data(inputfile_id, datasetname, H5T_NATIVE_DOUBLE, temp); CHKERRQ(ierr);
-		ierr = ri2c(temp, gi->s_dual[axis], gi->N[axis]); CHKERRQ(ierr);
+			ierr = PetscStrcpy(datasetname, "/s"); CHKERRQ(ierr);
+			ierr = append_char(datasetname, w[axis]); CHKERRQ(ierr);
+			ierr = PetscStrcat(datasetname, gtname[gt]); CHKERRQ(ierr);
+			ierr = h5get_data(inputfile_id, datasetname, H5T_NATIVE_DOUBLE, temp); CHKERRQ(ierr);
+			ierr = ri2c(temp, gi->s_factor[axis][gt], gi->N[axis]); CHKERRQ(ierr);
+		}
 	}
 
 	gi->Ntot = gi->N[Xx] * gi->N[Yy] * gi->N[Zz] * Naxis;  // total # of unknowns
@@ -177,9 +170,9 @@ ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\tN = [%d, %d, %d]\n", gi->N[Xx],
 		gi->has_epsNode = PETSC_FALSE;
 	}
 */
-	gi->has_epsNode = PETSC_TRUE;
 
 	/** Set the flag for the initial guess solution. */
+/*
 	htri_t isE0;
 	ierr = PetscStrcpy(datasetname, "/E0"); CHKERRQ(ierr);
 	isE0 = H5Lexists(inputfile_id, datasetname, H5P_DEFAULT);
@@ -188,8 +181,21 @@ ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\tN = [%d, %d, %d]\n", gi->N[Xx],
 	} else {
 		gi->has_x0 = PETSC_FALSE;
 	}
+*/
+/*
+	ierr = PetscStrcpy(file_name, gi->input_name); CHKERRQ(ierr);
+	ierr = PetscStrcat(file_name, ".F0"); CHKERRQ(ierr);
+	file = fopen(file_name, "r");  // in a project directory
+	if (file) {
+		gi->has_x0 = PETSC_TRUE;
+		fclose(file);
+	} else {
+		gi->has_x0 = PETSC_FALSE;
+	}
+*/
 
 	/** Set the flag for the reference solution. */
+/*
 	htri_t isEref; 
 	ierr = PetscStrcpy(datasetname, "/Eref"); CHKERRQ(ierr);
 	isEref = H5Lexists(inputfile_id, datasetname, H5P_DEFAULT);
@@ -199,18 +205,19 @@ ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\tN = [%d, %d, %d]\n", gi->N[Xx],
 	} else {
 		gi->has_xref = PETSC_FALSE;
 	}
-
-	/** Set the flag for the incident field distribution for TF/SF. */
-	htri_t isEinc;
-	ierr = PetscStrcpy(datasetname, "/Einc"); CHKERRQ(ierr);
-	isEinc = H5Lexists(inputfile_id, datasetname, H5P_DEFAULT);
-	if (isEinc && isEinc >= 0) {
-		gi->has_xinc = PETSC_TRUE;
+*/
+	ierr = PetscStrcpy(file_name, gi->input_name); CHKERRQ(ierr);
+	ierr = PetscStrcat(file_name, ".Fref"); CHKERRQ(ierr);
+	file = fopen(file_name, "r");  // in a project directory
+	if (file) {
+		gi->has_xref = PETSC_TRUE;
+		ierr = createVecPETSc(&gi->xref, "Fref", *gi);
+		fclose(file);
 	} else {
-		gi->has_xinc = PETSC_FALSE;
+		gi->has_xref = PETSC_FALSE;
 	}
 
-   status = H5Fclose(inputfile_id);
+	status = H5Fclose(inputfile_id);
 
 	PetscFunctionReturn(0);
 }
@@ -227,10 +234,14 @@ PetscErrorCode setOptions(GridInfo *gi)
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
 
+	const char *opt_name;
+	char opt_str[PETSC_MAX_PATH_LEN];
+	PetscBool has_opt, is_target_value, has_opt_val;
+	PetscInt opt_int;
+	PetscReal opt_real;
+
 	/** Set flags with default values.  If the relevant fields are not set in the input file or 
 	  fd3d_config file, these default values are used. */
-	gi->bg_only = PETSC_FALSE;
-	gi->x_type = Etype;
 	gi->pml_type = SCPML;
 	gi->pc_type = PCIdentity;
 	gi->krylov_type = BiCG;
@@ -245,11 +256,21 @@ PetscErrorCode setOptions(GridInfo *gi)
 	gi->verbose_level = VBDetail;
 	gi->output_relres = PETSC_FALSE;
 
-	const char *opt_name;
-	char opt_str[PETSC_MAX_PATH_LEN];
-	PetscBool has_opt, is_target_value, has_opt_val;
-
 	/** Below, PetscOptionsGetString() null-terminates opt_str, I guess. */
+
+	/** maxit */
+	opt_name = "-fd3d_maxit";
+	ierr = PetscOptionsGetInt(PETSC_NULL, opt_name, &opt_int, &has_opt_val); CHKERRQ(ierr);
+	if (has_opt_val) {
+		gi->max_iter = opt_int;
+	}
+
+	/** tol */
+	opt_name = "-fd3d_tol";
+	ierr = PetscOptionsGetReal(PETSC_NULL, opt_name, &opt_real, &has_opt_val); CHKERRQ(ierr);
+	if (has_opt_val) {
+		gi->tol = opt_real;
+	}
 
 	/** Field type */
 	opt_name = "-fd3d_x_type";
@@ -261,6 +282,24 @@ PetscErrorCode setOptions(GridInfo *gi)
 		} else if (!(ierr = PetscStrcasecmp(opt_str, "H", &is_target_value)) && is_target_value) {
 			CHKERRQ(ierr);
 			gi->x_type = Htype;
+		} else {
+			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Unsupported option flag in %s; proceed with the default value.\n", opt_name); CHKERRQ(ierr);
+		}
+	}
+
+	/** F0 type */
+	opt_name = "-fd3d_x0_type";
+	ierr = PetscOptionsGetString(PETSC_NULL, opt_name, opt_str, PETSC_MAX_PATH_LEN-1, &has_opt); CHKERRQ(ierr);  
+	if (has_opt) {
+		if (!(ierr = PetscStrcasecmp(opt_str, "zero", &is_target_value)) && is_target_value) {
+			CHKERRQ(ierr);
+			gi->x0_type = GEN_ZERO;
+		} else if (!(ierr = PetscStrcasecmp(opt_str, "rand", &is_target_value)) && is_target_value) {
+			CHKERRQ(ierr);
+			gi->x0_type = GEN_RAND;
+		} else if (!(ierr = PetscStrcasecmp(opt_str, "given", &is_target_value)) && is_target_value) {
+			CHKERRQ(ierr);
+			gi->x0_type = GEN_GIVEN;
 		} else {
 			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Unsupported option flag in %s; proceed with the default value.\n", opt_name); CHKERRQ(ierr);
 		}
@@ -285,12 +324,12 @@ PetscErrorCode setOptions(GridInfo *gi)
 	opt_name = "-fd3d_pc";
 	ierr = PetscOptionsGetString(PETSC_NULL, opt_name, opt_str, PETSC_MAX_PATH_LEN-1, &has_opt); CHKERRQ(ierr);  
 	if (has_opt) {
-		if (!(ierr = PetscStrcasecmp(opt_str, "sparam", &is_target_value)) && is_target_value) {
+		if (!(ierr = PetscStrcasecmp(opt_str, "sfactor", &is_target_value)) && is_target_value) {
 			CHKERRQ(ierr);
-			gi->pc_type = PCSparam;
-		} else if (!(ierr = PetscStrcasecmp(opt_str, "eps", &is_target_value)) && is_target_value) {
+			gi->pc_type = PCSfactor;
+		} else if (!(ierr = PetscStrcasecmp(opt_str, "param", &is_target_value)) && is_target_value) {
 			CHKERRQ(ierr);
-			gi->pc_type = PCEps;
+			gi->pc_type = PCParam;
 		} else if (!(ierr = PetscStrcasecmp(opt_str, "jacobi", &is_target_value)) && is_target_value) {
 			CHKERRQ(ierr);
 			gi->pc_type = PCJacobi;

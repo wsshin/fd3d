@@ -7,21 +7,21 @@
 
 #include "petsc.h"
 
-typedef PetscErrorCode (*IterativeSolver)(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, GridInfo gi);
+typedef PetscErrorCode (*IterativeSolver)(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, const Vec conjPararm, const Vec conjSrc, GridInfo gi);
 
-PetscErrorCode bicgSymmetric(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, GridInfo gi);
+PetscErrorCode bicgSymmetric(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, const Vec conjPararm, const Vec conjSrc, GridInfo gi);
 
-PetscErrorCode cgs(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, GridInfo gi);
+PetscErrorCode cgs(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, const Vec conjPararm, const Vec conjSrc, GridInfo gi);
 
-PetscErrorCode bicg(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, GridInfo gi);
+PetscErrorCode bicg(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, const Vec conjPararm, const Vec conjSrc, GridInfo gi);
 
-PetscErrorCode qmr(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, GridInfo gi);
+PetscErrorCode qmr(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, const Vec conjPararm, const Vec conjSrc, GridInfo gi);
 
-PetscErrorCode qmrSymmetric(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, GridInfo gi);
+PetscErrorCode qmrSymmetric(const Mat A, Vec x, const Vec b, const Vec right_precond, const Mat HE, const Vec conjPararm, const Vec conjSrc, GridInfo gi);
 
-PetscErrorCode cgAandAdag(const Mat A, const Mat Adag, Vec x1, Vec x2, const Vec b1, const Vec b2, const Vec right_precond, const Mat HE, GridInfo gi);
+PetscErrorCode cgAandAdag(const Mat A, const Mat Adag, Vec x1, Vec x2, const Vec b1, const Vec b2, const Vec right_precond, const Mat HE, const Vec conjPararm, const Vec conjSrc, GridInfo gi);
 
-PetscErrorCode bicgAandAdag(const Mat A, const Mat Adag, Vec x1, Vec x2, const Vec b1, const Vec b2, const Vec right_precond, const Mat HE, GridInfo gi);
+PetscErrorCode bicgAandAdag(const Mat A, const Mat Adag, Vec x1, Vec x2, const Vec b1, const Vec b2, const Vec right_precond, const Mat HE, const Vec conjPararm, const Vec conjSrc, GridInfo gi);
 
 PetscErrorCode vecNormalize(Vec x1, Vec x2, PetscReal *val);
 

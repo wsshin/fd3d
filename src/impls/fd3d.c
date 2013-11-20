@@ -7,6 +7,7 @@
 #include "mat.h"
 #include "solver.h"
 #include "output.h"
+#include <assert.h>
 
 //ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "I'm here!\n"); CHKERRQ(ierr);
 //ierr = VecView(vec, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
@@ -24,16 +25,18 @@ const char *OPTION_FILE_NAME = "fd3d_config";
 
 #undef __FUNCT__
 #define __FUNCT__ "cleanup"
-PetscErrorCode cleanup(Mat A, Vec b, Vec right_precond, Mat HE, GridInfo gi)
+PetscErrorCode cleanup(Mat A, Vec b, Vec right_precond, Mat CF, Vec conjParam, Vec conjSrc, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
 
 	/** Destroy matrices and vectotrs used in BiCG. */
-	ierr = MatDestroy(&A); CHKERRQ(ierr);  // destroy A == CEH
+	ierr = MatDestroy(&A); CHKERRQ(ierr);  // destroy A == CGF
 	ierr = VecDestroy(&b); CHKERRQ(ierr);
 	ierr = VecDestroy(&right_precond); CHKERRQ(ierr);
-	ierr = MatDestroy(&HE); CHKERRQ(ierr);  // destroy EH == CH
+	ierr = MatDestroy(&CF); CHKERRQ(ierr);  // destroy CF == CH or CE
+	ierr = VecDestroy(&conjParam); CHKERRQ(ierr);
+	ierr = VecDestroy(&conjSrc); CHKERRQ(ierr);
 
 	/** Finalize the program. */
 	ierr = DMDestroy(&gi.da); CHKERRQ(ierr);
@@ -43,9 +46,11 @@ PetscErrorCode cleanup(Mat A, Vec b, Vec right_precond, Mat HE, GridInfo gi)
 	}
 
 	// Need to move this to gridinfo.c
-	PetscInt axis;
+	PetscInt axis, sign;
 	for (axis = 0; axis < Naxis; ++axis) {
-		ierr = PetscFree6(gi.d_prim[axis], gi.d_dual[axis], gi.s_prim[axis], gi.s_dual[axis], gi.d_prim_orig[axis], gi.d_dual_orig[axis]); CHKERRQ(ierr);
+		for (sign = 0; sign < Nsign; ++sign) {
+			ierr = PetscFree3(gi.dl[axis][sign], gi.s_factor[axis][sign], gi.dl_orig[axis][sign]); CHKERRQ(ierr);
+		}
 	}
 	//ISLocalToGlobalMappingDestroy(gi.map); CHKERRQ(ierr);
 
@@ -128,36 +133,16 @@ PetscErrorCode main(int argc, char **argv)
 	/** Set FD3D options in GridInfo. */
 	ierr = setOptions(&gi); CHKERRQ(ierr);
 
-	Mat A, HE;
-	Vec b, right_precond;
+	Mat A, CF;
+	Vec b, right_precond, conjParam, conjSrc;
 
 	/** Create A and b according to the options. */
-	//ierr = create_A_and_b(&A, &b, &right_precond, &HE, gi, &ts); CHKERRQ(ierr);
-	//ierr = create_A_and_b2(&A, &b, &right_precond, &HE, gi, &ts); CHKERRQ(ierr);
-	//ierr = create_A_and_b3(&A, &b, &right_precond, &HE, gi, &ts); CHKERRQ(ierr);
-	ierr = create_A_and_b4(&A, &b, &right_precond, &HE, gi, &ts); CHKERRQ(ierr);
-
-	/** TF/SF */
-	/** TF/SF is currently supported only by the SC-PML. */
-	if (gi.has_xinc) {
-		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nCreate the TF/SF source.\n"); CHKERRQ(ierr);
-		Mat A_bg;
-		gi.bg_only = PETSC_TRUE;
-		ierr = create_A_and_b4(&A_bg, &b, &right_precond, &HE, gi, &ts); CHKERRQ(ierr);
-		Vec xinc;
-		ierr = createVecHDF5(&xinc, "/Einc", gi); CHKERRQ(ierr);
-		ierr = MatMult(A_bg, xinc, b); CHKERRQ(ierr);
-
-		ierr = VecDestroy(&xinc); CHKERRQ(ierr);
-		ierr = MatDestroy(&A_bg); CHKERRQ(ierr);
-		gi.bg_only = PETSC_FALSE;
-		ierr = updateTimeStamp(VBDetail, &ts, "TF/SF source", gi); CHKERRQ(ierr);
-	}
+	ierr = create_A_and_b4(&A, &b, &right_precond, &CF, &conjParam, &conjSrc, gi, &ts); CHKERRQ(ierr);
 
 	/** Output A and b. */
 	if (gi.output_mat_and_vec) {
-		ierr = output_mat_and_vec(A, b, right_precond, HE, gi); CHKERRQ(ierr);
-		ierr = cleanup(A, b, right_precond, HE, gi); CHKERRQ(ierr);
+		ierr = output_mat_and_vec(A, b, right_precond, CF, gi); CHKERRQ(ierr);
+		ierr = cleanup(A, b, right_precond, CF, conjParam, conjSrc, gi); CHKERRQ(ierr);
 
 		PetscFunctionReturn(0);  // finish the program
 	}
@@ -170,13 +155,20 @@ PetscErrorCode main(int argc, char **argv)
 	  y = diag(right_precond) x
 	 */
 	Vec x;  // actually y in the above equation
-	if (gi.has_x0) {
-		ierr = createVecHDF5(&x, "/E0", gi); CHKERRQ(ierr);
+	if (gi.x0_type == GEN_GIVEN) {
+		ierr = createVecPETSc(&x, "F0", gi); CHKERRQ(ierr);
 		ierr = VecPointwiseMult(x, x, right_precond); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VBDetail, &ts, "supplied x0 initialization", gi); CHKERRQ(ierr);
 	} else {  // in this case, not preconditioning x is better
 		ierr = VecDuplicate(gi.vecTemp, &x); CHKERRQ(ierr);
-		//ierr = VecSet(x, 0.0); CHKERRQ(ierr);
-		ierr = VecSetRandom(x, PETSC_NULL); CHKERRQ(ierr);  // for random initial x
+		if (gi.x0_type == GEN_ZERO) {
+			ierr = VecSet(x, 0.0); CHKERRQ(ierr);
+			ierr = updateTimeStamp(VBDetail, &ts, "zero x0 initialization", gi); CHKERRQ(ierr);
+		} else {
+			assert(gi.x0_type == GEN_RAND);
+			ierr = VecSetRandom(x, PETSC_NULL); CHKERRQ(ierr);  // for random initial x
+			ierr = updateTimeStamp(VBDetail, &ts, "random x0 initialization", gi); CHKERRQ(ierr);
+		}
 //		ierr = VecPointwiseDivide(x, x, right_precond); CHKERRQ(ierr);
 
 		/** For initial condition trick */
@@ -351,7 +343,7 @@ PetscErrorCode main(int argc, char **argv)
 			for (nmin = 1; PetscAbsScalar((smin_inv-sprev)/smin_inv) > 1e-11; ++nmin) {
 				sprev = smin_inv;
 
-				ierr = bicgAandAdag(A, Adag, x1, x2, b1, b2, right_precond, HE, gi); CHKERRQ(ierr);
+				ierr = bicgAandAdag(A, Adag, x1, x2, b1, b2, right_precond, CF, conjParam, conjSrc, gi); CHKERRQ(ierr);
 				ierr = vecNormalize(x1, x2, &smin_inv); CHKERRQ(ierr);
 				ierr = VecCopy(x1, b1); CHKERRQ(ierr);
 				ierr = VecCopy(x2, b2); CHKERRQ(ierr);
@@ -390,8 +382,8 @@ PetscErrorCode main(int argc, char **argv)
 				gi.relres_file = fopen(relres_file_name, "w");  // in a project directory
 			}
 
-			ierr = solver(A, x, b, right_precond, HE, gi); CHKERRQ(ierr);
-			//ierr = solver(GD, x, b, right_precond, HE, gi); CHKERRQ(ierr);
+			ierr = solver(A, x, b, right_precond, CF, conjParam, conjSrc, gi); CHKERRQ(ierr);
+			//ierr = solver(GD, x, b, right_precond, CF, conjParam, conjSrc, gi); CHKERRQ(ierr);
 
 			//ierr = bicg_component(x, gi, &ts); CHKERRQ(ierr);
 
@@ -411,8 +403,8 @@ PetscErrorCode main(int argc, char **argv)
 				ierr = VecAYPX(rk, -1.0, b); CHKERRQ(ierr);  // rk = b - rk
 				ierr = VecCopy(rk, x0); CHKERRQ(ierr);
 				ierr = VecScale(x0, -1/(gi.omega*gi.omega)); CHKERRQ(ierr);
-				ierr = solver(A, x0, rk, right_precond, HE, gi); CHKERRQ(ierr);  // now x0 is solution
-				//ierr = solver(GD, x, b, right_precond, HE, gi); CHKERRQ(ierr);
+				ierr = solver(A, x0, rk, right_precond, CF, conjParam, conjSrc, gi); CHKERRQ(ierr);  // now x0 is solution
+				//ierr = solver(GD, x, b, right_precond, CF, conjParam, conjSrc, gi); CHKERRQ(ierr);
 				ierr = VecAXPY(x, 1.0, x0); CHKERRQ(ierr);  // x = x + x0
 			}
 */
@@ -449,12 +441,12 @@ PetscErrorCode main(int argc, char **argv)
 
 	/** Output the solution. */
 	//ierr = VecAXPY(x, 1.0, e0); CHKERRQ(ierr);
-	ierr = output(gi.output_name, gi.x_type, x, HE); CHKERRQ(ierr);
+	ierr = output(gi.output_name, x, CF, conjParam, conjSrc, gi); CHKERRQ(ierr);
 	ierr = updateTimeStamp(VBDetail, &ts, "iterative solver", gi); CHKERRQ(ierr);
 
 	/** Clean up. */
 	ierr = VecDestroy(&x); CHKERRQ(ierr);
-	ierr = cleanup(A, b, right_precond, HE, gi); CHKERRQ(ierr);
+	ierr = cleanup(A, b, right_precond, CF, conjParam, conjSrc, gi); CHKERRQ(ierr);
 
 	PetscFunctionReturn(0);  // finish the program
 }

@@ -15,7 +15,7 @@
 //#define MATRIX_TYPE MATSEQAIJ
 //#define MATRIX_SYM_TYPE MATSEQSBAIJ
 
-PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, GridInfo gi, TimeStamp *ts);
+PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *HE, Vec *conjParam, Vec *conjSrc, GridInfo gi, TimeStamp *ts);
 
 PetscErrorCode createDivE(Mat *DivE, GridInfo gi);
 
