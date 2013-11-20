@@ -3,7 +3,7 @@ DEBUG = 0
 CFLAGS_CUSTOM = -Wall -Wwrite-strings -g3
 ifeq (${DEBUG}, 0)
 	# PETSC_ARCH environment variable used to build PETSc library configured with "--with-debugging=0" flag
-	PETSC_ARCH = 
+	PETSC_ARCH = petscfd3d
 else
 	# PETSC_ARCH environment variable used to build PETSc library configured with "--with-debugging=1" flag
 	PETSC_ARCH =
