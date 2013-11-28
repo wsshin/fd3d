@@ -7,8 +7,8 @@ The FD3D root directory consists of the following subdirectories:
 - bin/
 This directory will contain executables of the FD3D program and other utilities once they are built from the source codes in src/.  The main executable is fd3d.  To use these binaries, the path to this directory should be added to user's PATH evironment variable as instructed in INSTALL.
 
-- example/
-This directory contains example job scripts.
+- batchjob/
+This directory contains an example batch job script that is used in typical LINUX clusters.
 
 - src/
 This directory contains the source codes and makefiles to build executables in bin/.
