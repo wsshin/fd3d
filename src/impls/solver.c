@@ -34,6 +34,9 @@ PetscErrorCode bicgSymmetric_kernel(const Mat A, Vec x, const Vec b, const Vec r
 	PetscScalar gamma;  // rr_curr / rr_prev
 
 	PetscInt num_iter;
+	PetscLogDouble iter_begin;
+	PetscLogDouble iter_end;
+	ierr = PetscTime(&iter_begin); CHKERRQ(ierr);
 	for (num_iter = 0; (max_iter <= 0 || num_iter < max_iter) && rel_res > tol; ++num_iter) {
 		if (monitor != PETSC_NULL) {
 			ierr = monitor(VBMedium, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
@@ -71,6 +74,8 @@ PetscErrorCode bicgSymmetric_kernel(const Mat A, Vec x, const Vec b, const Vec r
 	if (monitor != PETSC_NULL) {
 		ierr = monitor(VBCompact, x, right_precond, num_iter, rel_res, HE, conjParam, conjSrc, &gi); CHKERRQ(ierr);
 	}
+	ierr = PetscTime(&iter_end); CHKERRQ(ierr);
+	ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "iteration took %f\n", iter_end - iter_begin); CHKERRQ(ierr);
 
 	ierr = VecDestroy(&r); CHKERRQ(ierr);
 	ierr = VecDestroy(&p); CHKERRQ(ierr);
