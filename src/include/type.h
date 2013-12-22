@@ -9,6 +9,7 @@ typedef enum {Etype, Htype, Nft} FieldType;
 typedef enum {GEN_ZERO, GEN_RAND, GEN_GIVEN} F0Type;
 typedef enum {PEC, PMC, Bloch} BC;
 typedef enum {SCPML, UPML} PMLType;
+typedef enum {SYMCond, SYMTr, SYMVol} SYMType;
 typedef enum {PCIdentity, PCSfactor, PCParam, PCJacobi} PrecondType;
 typedef enum {BiCG, QMR} KrylovType;
 typedef enum {Rr, Ii, Nri} RI;

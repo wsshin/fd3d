@@ -90,10 +90,11 @@ ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\tN = [%d, %d, %d]\n", gi->N[Xx],
 	for (axis = 0; axis < Naxis; ++axis) {
 		for (gt = 0; gt < Ngt; ++gt) {
 			PetscReal temp[gi->N[axis] * Nri];
-			ierr = PetscMalloc3(
+			ierr = PetscMalloc4(
 					gi->N[axis], PetscScalar, &gi->dl[axis][gt],
+					gi->N[axis], PetscScalar, &gi->dl_orig[axis][gt], 
 					gi->N[axis], PetscScalar, &gi->s_factor[axis][gt],
-					gi->N[axis], PetscScalar, &gi->dl_orig[axis][gt]); CHKERRQ(ierr);
+					gi->N[axis], PetscScalar, &gi->s_factor_orig[axis][gt]); CHKERRQ(ierr);
 
 			ierr = PetscStrcpy(datasetname, "/d"); CHKERRQ(ierr);
 			ierr = append_char(datasetname, w[axis]); CHKERRQ(ierr);
@@ -107,6 +108,7 @@ ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\tN = [%d, %d, %d]\n", gi->N[Xx],
 			ierr = PetscStrcat(datasetname, gtname[gt]); CHKERRQ(ierr);
 			ierr = h5get_data(inputfile_id, datasetname, H5T_NATIVE_DOUBLE, temp); CHKERRQ(ierr);
 			ierr = ri2c(temp, gi->s_factor[axis][gt], gi->N[axis]); CHKERRQ(ierr);
+			ierr = ri2c(temp, gi->s_factor_orig[axis][gt], gi->N[axis]); CHKERRQ(ierr);
 		}
 	}
 
@@ -244,6 +246,7 @@ PetscErrorCode setOptions(GridInfo *gi)
 	  fd3d_config file, these default values are used. */
 	gi->pml_type = SCPML;
 	gi->pc_type = PCIdentity;
+	gi->sym_type = SYMCond;
 	gi->krylov_type = BiCG;
 	gi->is_symmetric = PETSC_FALSE;
 	gi->add_conteq = PETSC_FALSE;
@@ -342,8 +345,30 @@ PetscErrorCode setOptions(GridInfo *gi)
 	}
 
 	/** Symmetry */
+	/* This should be set up after PML type. */
 	opt_name = "-fd3d_symmetric";
 	ierr = PetscOptionsHasName(PETSC_NULL, opt_name, &gi->is_symmetric); CHKERRQ(ierr);
+
+	opt_name = "-fd3d_sym_type";
+	ierr = PetscOptionsGetString(PETSC_NULL, opt_name, opt_str, PETSC_MAX_PATH_LEN-1, &has_opt); CHKERRQ(ierr);  
+	if (has_opt) {
+		if (!(ierr = PetscStrcasecmp(opt_str, "cond", &is_target_value)) && is_target_value) {
+			CHKERRQ(ierr);
+			gi->sym_type = SYMCond;
+			gi->pml_type = SCPML;
+		} else if (!(ierr = PetscStrcasecmp(opt_str, "tr", &is_target_value)) && is_target_value) {
+			CHKERRQ(ierr);
+			gi->sym_type = SYMTr;
+			gi->pml_type = UPML;
+		} else if (!(ierr = PetscStrcasecmp(opt_str, "vol", &is_target_value)) && is_target_value) {
+			CHKERRQ(ierr);
+			gi->sym_type = SYMVol;
+			gi->pml_type = SCPML;
+		}else {
+			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Unsupported option flag in %s; proceed with the default value.\n", opt_name); CHKERRQ(ierr);
+			gi->pml_type = SCPML;
+		}
+	}
 
 	/** Addtion of the continuity equation */
 	opt_name = "-fd3d_add_conteq";

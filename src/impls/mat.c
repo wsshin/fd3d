@@ -9,6 +9,7 @@ const char * const FieldTypeName[] = {"E", "H"};
 const char * const GridTypeName[] = {"primary", "dual"};
 const char * const PMLTypeName[] = {"SC-PML", "UPML"};
 const char * const PCTypeName[] = {"identity", "s-factor", "eps", "Jacobi"};
+const char * const SYMTypeName[] = {"condition-", "transformation-", "volume-"};
 
 //const char * const KrylovTypeName[] = {"BiCG", "QMR"};
 
@@ -1151,8 +1152,8 @@ PetscErrorCode numSymmetrize(Mat A)
  * Stretches dx, dy, dz with s-factors.
  * Note that this function can be written to take GridInfo instead of GridInfo* because dl is 
  * a pointer variable; even if GridInfo were used and the argument gi is delivered as a 
- * copy, the pointer value dl is the same as the original, so modifying dl[axis][gt][n] and 
- * dl[axis][gt][n] modifies the original dl elements.
+ * copy, the pointer value dl is the same as the original, so modifying dl[axis][gt][n] modifies 
+ * the original dl elements.
  * However, to make sure that users understand that the contents of gi change in this function, this
  * function is written to take GridInfo*.
  */
@@ -1187,6 +1188,64 @@ PetscErrorCode unstretch_d(GridInfo *gi)
 		for (gt = 0; gt < Ngt; ++gt) {
 			for (n = 0; n < gi->N[axis]; ++n) {
 				gi->dl[axis][gt][n] = gi->dl_orig[axis][gt][n];
+			}
+		}
+	}
+
+	PetscFunctionReturn(0);
+}
+
+/**
+ * stretch_s
+ * ---------
+ * Stretches sx, sy, sz with dx, dy, dz.
+ * Note that this function can be written to take GridInfo instead of GridInfo* because s_factor is 
+ * a pointer variable; even if GridInfo were used and the argument gi is delivered as a 
+ * copy, the pointer value s_factor is the same as the original, so modifying s_factor[axis][gt][n] 
+ * modifies the original dl elements.
+ * However, to make sure that users understand that the contents of gi change in this function, this
+ * function is written to take GridInfo*.
+ */
+#undef __FUNCT__
+#define __FUNCT__ "stretch_s"
+PetscErrorCode stretch_s(GridInfo *gi)
+{
+	PetscFunctionBegin;
+
+	/** Stretch gi.s_factor by gi.dl. */
+	PetscInt axis, gt, n;
+	for (axis = 0; axis < Naxis; ++axis) {
+		for (gt = 0; gt < Ngt; ++gt) {
+			for (n = 0; n < gi->N[axis]; ++n) {
+				gi->s_factor[axis][gt][n] *= gi->dl[axis][gt][n];
+
+				/** Below, dl is set to 1.0, whereas s_factor = 1.0 is not performed in stretch_d().
+				This breaks the duality between stretch_d() and stretch_s().  stretch_d() should keep
+				s_factor intact, because even after stretch_d() is used for sym_type == SYMCond or
+				SYMVol, s_factor is used to construct preconditioners.  On the other hand, when
+				sym_type == SYMTr is used, we need to construct the curl operators with dl = 1.0, so
+				we need to perform dl = 1.0 below.  This is OK, because sym_type == SYMTr does not
+				use any preconditioner based on original dl. */
+				gi->dl[axis][gt][n] = 1.0;
+			}
+		}
+	}
+
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "unstretch_s"
+PetscErrorCode unstretch_s(GridInfo *gi)
+{
+	PetscFunctionBegin;
+
+	/** Recover the original gi.s_factor. */
+	PetscInt axis, gt, n;
+	for (axis = 0; axis < Naxis; ++axis) {
+		for (gt = 0; gt < Ngt; ++gt) {
+			for (n = 0; n < gi->N[axis]; ++n) {
+				gi->s_factor[axis][gt][n] = gi->s_factor_orig[axis][gt][n];
 			}
 		}
 	}
@@ -1231,7 +1290,7 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 
 	if (gi.verbose_level >= VBMedium) {
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Create matrix for %s on %s grid with %s, preconditioned by %s.\n", FieldTypeName[gi.x_type], GridTypeName[gi.x_type==Etype ? gi.ge:((gi.ge+1)%Ngt)], PMLTypeName[gi.pml_type], PCTypeName[gi.pc_type]); CHKERRQ(ierr);
-		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "The matrix is %s, continuity eq %s", (gi.is_symmetric ? "symmetric":"non-symmetric"), (gi.add_conteq ? "added":"not added")); CHKERRQ(ierr);
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "The matrix is %s%s, continuity eq %s", (gi.is_symmetric ? SYMTypeName[gi.sym_type]:""), (gi.is_symmetric ? "symmetric":"non-symmetric"), (gi.add_conteq ? "added":"not added")); CHKERRQ(ierr);
 		if (gi.add_conteq) {
 			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, " with factor %f", gi.factor_conteq); CHKERRQ(ierr);
 		}
@@ -1258,12 +1317,16 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 	ierr = createVecPETSc(&srcM, "srcM", gi); CHKERRQ(ierr);
 	ierr = updateTimeStamp(VBDetail, ts, "M vector", gi); CHKERRQ(ierr);
 
-	/** Stretch parameters by  gi.s_factor. */
+	/** Stretch gi.dl, gi.s_factor, and material parameters depending on PML and symmetry type. */
 	if (gi.pml_type == SCPML) {
 		ierr = stretch_d(&gi); CHKERRQ(ierr);
 	} else {  // UPML
 		assert(gi.pml_type == UPML); 
 		Vec sfactor;
+
+		if (gi.sym_type == SYMTr) {
+			ierr = stretch_s(&gi); CHKERRQ(ierr);
+		}
 
 		ierr = createFieldArray(&sfactor, set_sfactor_eps_at, gi); CHKERRQ(ierr);
 		ierr = VecPointwiseMult(eps, eps, sfactor); CHKERRQ(ierr);
@@ -1392,37 +1455,70 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 	ierr = VecDuplicate(gi.vecTemp, right_precond); CHKERRQ(ierr);
 	ierr = VecSet(*right_precond, 1.0); CHKERRQ(ierr);
 
-	if (gi.is_symmetric) {  // currently, is_symmetric only works for x_type == Etype
-		/** original eq: A0 x = b.  The matrix 
-		  diag(1/sqrt(Epec)) diag(sqrt(LS)) A0 diag(1/sqrt(LS)) diag(sqrt(Epec))
-		  is symmetric. */
+	if (gi.is_symmetric) {
+		if (gi.sym_type == SYMCond) {
+			/** original eq: A0 x = b.  The matrix 
+			  diag(1/sqrt(Epec)) diag(sqrt(LS)) A0 diag(1/sqrt(LS)) diag(sqrt(Epec))
+			  is symmetric. */
 
-		/** Calculate the diagonal matrix to be multiplied to the left and right of the 
-		  matrix A for symmetrizing A. */
-		Vec sqrtLS, dS;
-		if (gi.x_type == Etype) {
-			ierr = createFieldArray(&sqrtLS, set_dLe_at, gi); CHKERRQ(ierr);
-			ierr = createFieldArray(&dS, set_dSe_at, gi); CHKERRQ(ierr);
+			/** Calculate the diagonal matrix to be multiplied to the left and right of the 
+			  matrix A for symmetrizing A. */
+			Vec sqrtLS, dS;
+			if (gi.x_type == Etype) {
+				ierr = createFieldArray(&sqrtLS, set_dLe_at, gi); CHKERRQ(ierr);
+				ierr = createFieldArray(&dS, set_dSe_at, gi); CHKERRQ(ierr);
+			} else {
+				assert(gi.x_type == Htype);
+				ierr = createFieldArray(&sqrtLS, set_dLh_at, gi); CHKERRQ(ierr);
+				ierr = createFieldArray(&dS, set_dSh_at, gi); CHKERRQ(ierr);
+			}
+			ierr = VecPointwiseMult(sqrtLS, sqrtLS, dS); CHKERRQ(ierr);
+			ierr = VecDestroy(&dS); CHKERRQ(ierr);
+			ierr = sqrtVec(sqrtLS, gi); CHKERRQ(ierr);
+
+			ierr = VecPointwiseMult(*right_precond, *right_precond, sqrtLS); CHKERRQ(ierr);
+			ierr = VecDestroy(&sqrtLS); CHKERRQ(ierr);
+
+			Vec sqrtDoubleFbc;
+			ierr = createFieldArray(&sqrtDoubleFbc, set_double_Fbc_at, gi); CHKERRQ(ierr);
+			ierr = sqrtVec(sqrtDoubleFbc, gi); CHKERRQ(ierr);
+
+			ierr = VecPointwiseDivide(*right_precond, *right_precond, sqrtDoubleFbc); CHKERRQ(ierr);
+			ierr = VecDestroy(&sqrtDoubleFbc); CHKERRQ(ierr);
+
+			ierr = VecPointwiseDivide(left_precond, left_precond, *right_precond); CHKERRQ(ierr);
+		} else if (gi.sym_type == SYMTr) {
+			/* Because UPML-like formulation makes the matrix already mostly symmetric, we only
+			need to take care of the nonsymmetry due to PEC and PMC boundary conditions. */
+			Vec doubleFbc;
+			ierr = createFieldArray(&doubleFbc, set_double_Fbc_at, gi); CHKERRQ(ierr);
+			ierr = VecPointwiseDivide(*right_precond, *right_precond, doubleFbc); CHKERRQ(ierr);
+			ierr = VecDestroy(&doubleFbc); CHKERRQ(ierr);
 		} else {
-			assert(gi.x_type == Htype);
-			ierr = createFieldArray(&sqrtLS, set_dLh_at, gi); CHKERRQ(ierr);
-			ierr = createFieldArray(&dS, set_dSh_at, gi); CHKERRQ(ierr);
+			assert(gi.sym_type == SYMVol);
+
+			/** Calculate the diagonal matrix to be multiplied to the left of the matrix A for 
+			symmetrizing A. */
+			Vec dLS, dS;
+			if (gi.x_type == Etype) {
+				ierr = createFieldArray(&dLS, set_dLe_at, gi); CHKERRQ(ierr);
+				ierr = createFieldArray(&dS, set_dSe_at, gi); CHKERRQ(ierr);
+			} else {
+				assert(gi.x_type == Htype);
+				ierr = createFieldArray(&dLS, set_dLh_at, gi); CHKERRQ(ierr);
+				ierr = createFieldArray(&dS, set_dSh_at, gi); CHKERRQ(ierr);
+			}
+			ierr = VecPointwiseMult(dLS, dLS, dS); CHKERRQ(ierr);
+			ierr = VecDestroy(&dS); CHKERRQ(ierr);
+
+			ierr = VecPointwiseDivide(left_precond, left_precond, dLS); CHKERRQ(ierr);
+			ierr = VecDestroy(&dLS); CHKERRQ(ierr);
+
+			Vec doubleFbc;
+			ierr = createFieldArray(&doubleFbc, set_double_Fbc_at, gi); CHKERRQ(ierr);
+			ierr = VecPointwiseDivide(*right_precond, *right_precond, doubleFbc); CHKERRQ(ierr);
+			ierr = VecDestroy(&doubleFbc); CHKERRQ(ierr);
 		}
-		ierr = VecPointwiseMult(sqrtLS, sqrtLS, dS); CHKERRQ(ierr);
-		ierr = VecDestroy(&dS); CHKERRQ(ierr);
-		ierr = sqrtVec(sqrtLS, gi); CHKERRQ(ierr);
-
-		ierr = VecPointwiseMult(*right_precond, *right_precond, sqrtLS); CHKERRQ(ierr);
-		ierr = VecDestroy(&sqrtLS); CHKERRQ(ierr);
-
-		Vec sqrtDoubleFbc;
-		ierr = createFieldArray(&sqrtDoubleFbc, set_double_Fbc_at, gi); CHKERRQ(ierr);
-		ierr = sqrtVec(sqrtDoubleFbc, gi); CHKERRQ(ierr);
-
-		ierr = VecPointwiseDivide(*right_precond, *right_precond, sqrtDoubleFbc); CHKERRQ(ierr);
-		ierr = VecDestroy(&sqrtDoubleFbc); CHKERRQ(ierr);
-
-		ierr = VecPointwiseDivide(left_precond, left_precond, *right_precond); CHKERRQ(ierr);
 	}
 
 	/** Apply the preconditioner. Only one type of preconditioners is applied. */
@@ -1504,10 +1600,9 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 	ierr = VecDestroy(&inv_left); CHKERRQ(ierr);
 	ierr = VecDestroy(&inv_right); CHKERRQ(ierr);
 
-	/** Recover the original dl. */
-	if (gi.pml_type == SCPML) {
-		ierr = unstretch_d(&gi); CHKERRQ(ierr);
-	}
+	/** Recover the original dl and s_factor unconditionally; it does not hurt. */
+	ierr = unstretch_d(&gi); CHKERRQ(ierr);
+	ierr = unstretch_s(&gi); CHKERRQ(ierr);
 
 	ierr = MatDestroy(&CG); CHKERRQ(ierr);
 	ierr = VecDestroy(&mu); CHKERRQ(ierr);

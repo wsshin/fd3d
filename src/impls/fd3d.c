@@ -49,7 +49,7 @@ PetscErrorCode cleanup(Mat A, Vec b, Vec right_precond, Mat CF, Vec conjParam, V
 	PetscInt axis, sign;
 	for (axis = 0; axis < Naxis; ++axis) {
 		for (sign = 0; sign < Nsign; ++sign) {
-			ierr = PetscFree3(gi.dl[axis][sign], gi.s_factor[axis][sign], gi.dl_orig[axis][sign]); CHKERRQ(ierr);
+			ierr = PetscFree4(gi.dl[axis][sign], gi.dl_orig[axis][sign], gi.s_factor[axis][sign], gi.s_factor_orig[axis][sign]); CHKERRQ(ierr);
 		}
 	}
 	//ISLocalToGlobalMappingDestroy(gi.map); CHKERRQ(ierr);

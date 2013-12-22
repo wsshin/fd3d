@@ -22,6 +22,7 @@ typedef struct {
 	GridType ge;  // grid type of the E-field grid
 	PetscScalar exp_neg_ikL[Naxis];  // exp(-ik Lx), exp(-ik Ly), exp(-ik Lz)
 	PetscScalar *s_factor[Naxis][Ngt];  // sx, sy, sz parameters of PML at primary and dual grid locations
+	PetscScalar *s_factor_orig[Naxis][Ngt];  // sx, sy, sz parameters of PML at primary and dual grid locations
 	PetscScalar *dl[Naxis][Ngt];  // dx, dy, dz at primary and dual grid locations
 	PetscScalar *dl_orig[Naxis][Ngt];  // original dl
 	PetscReal lambda;  // normalized wavelength
@@ -43,6 +44,7 @@ typedef struct {
 	KrylovType krylov_type;
 	PrecondType pc_type;
 	PetscBool is_symmetric;
+	SYMType sym_type;
 	PetscBool add_conteq;
 	PetscReal factor_conteq;  // factor multiplied to the continuity equation before adding the eq
 	PetscBool use_ksp;
