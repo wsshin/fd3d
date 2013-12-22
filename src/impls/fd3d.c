@@ -238,11 +238,13 @@ PetscErrorCode main(int argc, char **argv)
 		}
 
 		/** Create a PC object. */
+/*
 		PC pc;
 		ierr = KSPGetPC(ksp, &pc); CHKERRQ(ierr);
 		ierr = PCSetType(pc, PCNONE); CHKERRQ(ierr);
 		ierr = KSPSetPC(ksp, pc); CHKERRQ(ierr);
 		ierr = KSPSetNormType(ksp, KSP_NORM_PRECONDITIONED); CHKERRQ(ierr);
+*/
 
 		/** Override any KSP settings (method, PC, monitor, etc) with options described in "option_file", if any. */ 
 		ierr = KSPSetFromOptions(ksp); CHKERRQ(ierr);
@@ -250,12 +252,12 @@ PetscErrorCode main(int argc, char **argv)
 		ierr = KSPGetType(ksp, &type); CHKERRQ(ierr);
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "actual algorithm: KSP %s\n", type); CHKERRQ(ierr);
 		/** Set up the monitor of the iteration process. */
-		ierr = KSPGetPC(ksp, &pc); CHKERRQ(ierr);
+//		ierr = KSPGetPC(ksp, &pc); CHKERRQ(ierr);
 
 		PetscReal norm_b;
 		Vec b_precond;
 		ierr = VecDuplicate(gi.vecTemp, &b_precond); CHKERRQ(ierr);
-		ierr = PCApply(pc, b, b_precond); CHKERRQ(ierr);  // for KSP_NORM_PRECONDITIONED above
+//		ierr = PCApply(pc, b, b_precond); CHKERRQ(ierr);  // for KSP_NORM_PRECONDITIONED above
 		ierr = VecNorm(b_precond, NORM_2, &norm_b); CHKERRQ(ierr);
 		ierr = VecDestroy(&b_precond); CHKERRQ(ierr);
 		ierr = KSPMonitorCancel(ksp); CHKERRQ(ierr);  // cancel the default monitor
