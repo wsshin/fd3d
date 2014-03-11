@@ -6,7 +6,7 @@
 #-fd3d_x0 random
 #-fd3d_add_conteq
 -fd3d_cell sd
-#-fd3d_sym sqrt(al)
+#-fd3d_sym sqrtal
 -fd3d_krylov bicg
 #-fd3d_use_ksp
 #-fd3d_pml upml
