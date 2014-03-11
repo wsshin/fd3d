@@ -10,7 +10,12 @@ typedef struct {
 	GridInfo *gi;
 } MonitorCtx;
 
-typedef PetscErrorCode (*MonitorIteration)(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo *gi);
+/** 
+ * Type for monitor functions.  
+ * Because monitor functions are executed at every iteration step, GridInfo is passed as a pointer to
+ * prevent it from being copied at every iteration step.
+ */
+typedef PetscErrorCode (*MonitorIteration)(const VBType vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo *gi);
 
 /**
  * output
@@ -24,7 +29,7 @@ PetscErrorCode output(char *output_name, const Vec x, const Mat GF, const Vec co
  * ------
  * Output the left and right singular vectors.
  */
-PetscErrorCode output_singular(char *output_name, const Vec u, const Vec v);
+PetscErrorCode output_singular(const char *output_name, const Vec u, const Vec v);
 
 /**
  * output_mat_and_vec
@@ -40,12 +45,12 @@ PetscErrorCode output_mat_and_vec(const Mat A, const Vec b, const Vec right_prec
  */
 PetscErrorCode monitor_relres(KSP ksp, PetscInt n, PetscReal norm_r, void *ctx);
 
-PetscErrorCode monitorRelres(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo *gi);
+PetscErrorCode monitorRelres(const VBType vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo *gi);
 
-PetscErrorCode monitorRelerr(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo *gi);
+PetscErrorCode monitorRelerr(const VBType vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo *gi);
 
-PetscErrorCode monitorSnapshot(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo *gi);
+PetscErrorCode monitorSnapshot(const VBType vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo *gi);
 
-PetscErrorCode monitorAll(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo *gi);
+PetscErrorCode monitorAll(const VBType vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat HE, const Vec conjParam, const Vec conjSrc, GridInfo *gi);
 
 #endif

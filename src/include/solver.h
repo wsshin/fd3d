@@ -27,6 +27,4 @@ PetscErrorCode vecNormalize(Vec x1, Vec x2, PetscReal *val);
 
 PetscErrorCode multAandAdag(const Mat A, const Mat Adag, const Vec x1, const Vec x2, Vec y1, Vec y2);
 
-PetscErrorCode bicg_component(Vec x, GridInfo gi, TimeStamp *ts);
-
 #endif

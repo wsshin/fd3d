@@ -21,10 +21,10 @@ typedef struct {
 	BC bc[Naxis];  // boundary conditions at -x, -y, -z boundaries
 	GridType ge;  // grid type of the E-field grid
 	PetscScalar exp_neg_ikL[Naxis];  // exp(-ik Lx), exp(-ik Ly), exp(-ik Lz)
-	PetscScalar *s_factor[Naxis][Ngt];  // sx, sy, sz parameters of PML at primary and dual grid locations
-	PetscScalar *s_factor_orig[Naxis][Ngt];  // sx, sy, sz parameters of PML at primary and dual grid locations
-	PetscScalar *dl[Naxis][Ngt];  // dx, dy, dz at primary and dual grid locations
-	PetscScalar *dl_orig[Naxis][Ngt];  // original dl
+	PetscScalar *s_factor[Naxis][Ngrid];  // s_factor[w][gt][n]: sw parameters at gt grid locations
+	const PetscScalar *s_factor_orig[Naxis][Ngrid];  // copy of s_factor
+	PetscScalar *dl[Naxis][Ngrid];  // dl[w][gt][n]: dw at gt grid locations
+	const PetscScalar *dl_orig[Naxis][Ngrid];  // copy of dl
 	PetscReal lambda;  // normalized wavelength
 	PetscReal omega;  // normalized angular frequency
 
@@ -39,19 +39,18 @@ typedef struct {
 	Vec vecTemp; // template vector.  Also used as a temporary storage of a vector
 	ISLocalToGlobalMapping map;  // local-to-global index mapping
 	FieldType x_type;  // field type of the solution of the equation to formulate
-	F0Type x0_type;  // how to generate x0
-	PMLType pml_type;
+	X0Type x0_type;  // how to generate x0
 	KrylovType krylov_type;
 	PrecondType pc_type;
-	PetscBool is_symmetric;
-	SYMType sym_type;
+	SymType sym_type;
+	CellType cell_type;
 	PetscBool add_conteq;
 	PetscReal factor_conteq;  // factor multiplied to the continuity equation before adding the eq
 	PetscBool use_ksp;
 	PetscBool output_mat_and_vec;
 	PetscBool solve_eigen;
 	PetscBool solve_singular;
-	VerboseLevel verbose_level; 
+	VBType verbose_level; 
 	PetscBool output_relres;  // output the norms of relative residual vectors to a file
 	FILE *relres_file;
 } GridInfo;
@@ -69,5 +68,12 @@ PetscErrorCode setGridInfo(GridInfo *gi);
  * Set options in the grid info.
  */
 PetscErrorCode setOptions(GridInfo *gi);
+
+/**
+ * init_s_d
+ * ---------
+ * Initialized s and d.
+ */
+PetscErrorCode init_s_d(GridInfo *gi);
 
 #endif

@@ -55,7 +55,7 @@ PetscErrorCode cleanup(Mat A, Vec b, Vec right_precond, Mat CF, Vec conjParam, V
 	//ISLocalToGlobalMappingDestroy(gi.map); CHKERRQ(ierr);
 
 	/** Print the summary of the program execution. */
-	if (gi.verbose_level >= VBMedium) {
+	if (gi.verbose_level >= VB_MEDIUM) {
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "fd3d finished.\n"); CHKERRQ(ierr);
 	}
 
@@ -125,10 +125,10 @@ PetscErrorCode main(int argc, char **argv)
 		ierr = PetscStrcpy(gi.output_name, gi.input_name); CHKERRQ(ierr);
 	}
 	ierr = setGridInfo(&gi); CHKERRQ(ierr);
-	if (gi.verbose_level >= VBMedium) {
+	if (gi.verbose_level >= VB_MEDIUM) {
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\n", gi.input_name); CHKERRQ(ierr);
 	}
-	ierr = updateTimeStamp(VBDetail, &ts, "grid info construction", gi); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VB_DETAIL, &ts, "grid info construction", gi); CHKERRQ(ierr);
 
 	/** Set FD3D options in GridInfo. */
 	ierr = setOptions(&gi); CHKERRQ(ierr);
@@ -137,6 +137,7 @@ PetscErrorCode main(int argc, char **argv)
 	Vec b, right_precond, conjParam, conjSrc;
 
 	/** Create A and b according to the options. */
+	ierr = init_s_d(&gi); CHKERRQ(ierr);
 	ierr = create_A_and_b4(&A, &b, &right_precond, &CF, &conjParam, &conjSrc, gi, &ts); CHKERRQ(ierr);
 
 	/** Output A and b. */
@@ -155,19 +156,19 @@ PetscErrorCode main(int argc, char **argv)
 	  y = diag(right_precond) x
 	 */
 	Vec x;  // actually y in the above equation
-	if (gi.x0_type == GEN_GIVEN) {
+	if (gi.x0_type == X0_GIVEN) {
 		ierr = createVecPETSc(&x, "F0", gi); CHKERRQ(ierr);
 		ierr = VecPointwiseMult(x, x, right_precond); CHKERRQ(ierr);
-		ierr = updateTimeStamp(VBDetail, &ts, "supplied x0 initialization", gi); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VB_DETAIL, &ts, "supplied x0 initialization", gi); CHKERRQ(ierr);
 	} else {  // in this case, not preconditioning x is better
 		ierr = VecDuplicate(gi.vecTemp, &x); CHKERRQ(ierr);
-		if (gi.x0_type == GEN_ZERO) {
+		if (gi.x0_type == X0_ZERO) {
 			ierr = VecSet(x, 0.0); CHKERRQ(ierr);
-			ierr = updateTimeStamp(VBDetail, &ts, "zero x0 initialization", gi); CHKERRQ(ierr);
+			ierr = updateTimeStamp(VB_DETAIL, &ts, "zero x0 initialization", gi); CHKERRQ(ierr);
 		} else {
-			assert(gi.x0_type == GEN_RAND);
+			assert(gi.x0_type == X0_RANDOM);
 			ierr = VecSetRandom(x, PETSC_NULL); CHKERRQ(ierr);  // for random initial x
-			ierr = updateTimeStamp(VBDetail, &ts, "random x0 initialization", gi); CHKERRQ(ierr);
+			ierr = updateTimeStamp(VB_DETAIL, &ts, "random x0 initialization", gi); CHKERRQ(ierr);
 		}
 //		ierr = VecPointwiseDivide(x, x, right_precond); CHKERRQ(ierr);
 
@@ -198,7 +199,7 @@ PetscErrorCode main(int argc, char **argv)
 
 	/** Solve A x = b. */
 	if (gi.use_ksp) {  // Use an algorithm in KSP.
-		if (gi.verbose_level >= VBMedium) {
+		if (gi.verbose_level >= VB_MEDIUM) {
 			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Iterative solver starts.\n"); CHKERRQ(ierr);
 		}
 
@@ -217,7 +218,7 @@ PetscErrorCode main(int argc, char **argv)
 		if (isSymmetric) {  // symmetric
 			ierr = KSPSetType(ksp, KSPCG); CHKERRQ(ierr);
 			ierr = KSPCGSetType(ksp, KSP_CG_SYMMETRIC); CHKERRQ(ierr);
-			if (gi.verbose_level >= VBMedium) {
+			if (gi.verbose_level >= VB_MEDIUM) {
 				ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "default algorithm: KSP CG symmetric, "); CHKERRQ(ierr);
 			}
 		} else {
@@ -226,12 +227,12 @@ PetscErrorCode main(int argc, char **argv)
 			if (isHermitian) {  // nonsymmetric but Hermitian
 				ierr = KSPSetType(ksp, KSPCG); CHKERRQ(ierr);
 				ierr = KSPCGSetType(ksp, KSP_CG_HERMITIAN); CHKERRQ(ierr);
-				if (gi.verbose_level >= VBMedium) {
+				if (gi.verbose_level >= VB_MEDIUM) {
 					ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "default algorithm: KSP CG Hermitian, "); CHKERRQ(ierr);
 				}
 			} else {  // neither symmetric nor Hermitian
 				ierr = KSPSetType(ksp, KSPBICG); CHKERRQ(ierr);
-				if (gi.verbose_level >= VBMedium) {
+				if (gi.verbose_level >= VB_MEDIUM) {
 					ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "default algorithm: KSP BICG, "); CHKERRQ(ierr);
 				}
 			}
@@ -278,7 +279,7 @@ PetscErrorCode main(int argc, char **argv)
 			fclose(gi.relres_file);
 		}
 
-		if (gi.verbose_level >= VBMedium) {
+		if (gi.verbose_level >= VB_MEDIUM) {
 			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Iterative solver finished.\n"); CHKERRQ(ierr);
 		}
 
@@ -353,7 +354,7 @@ PetscErrorCode main(int argc, char **argv)
 
 			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nnmax = %d, smax = %e, \tnmin = %d, smin = %e, \tcond = %e\n", nmax, smax, nmin, 1.0/smin_inv, smax*smin_inv); CHKERRQ(ierr);
 		} else {
-			if (gi.verbose_level >= VBMedium) {
+			if (gi.verbose_level >= VB_MEDIUM) {
 				ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Iterative solver starts.\n"); CHKERRQ(ierr);
 			}
 
@@ -361,7 +362,7 @@ PetscErrorCode main(int argc, char **argv)
 
 			PetscBool isSymmetric;
 			ierr = MatIsSymmetric(A, 0.0, &isSymmetric); CHKERRQ(ierr);
-			if (gi.krylov_type == QMR) {
+			if (gi.krylov_type == KRYLOV_QMR) {
 				if (isSymmetric) {
 					solver = qmrSymmetric;
 				} else {
@@ -414,7 +415,7 @@ PetscErrorCode main(int argc, char **argv)
 			}
 		}
 
-		if (gi.verbose_level >= VBMedium) {
+		if (gi.verbose_level >= VB_MEDIUM) {
 			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Iterative solver finished.\n"); CHKERRQ(ierr);
 		}
 	}
@@ -431,18 +432,15 @@ PetscErrorCode main(int argc, char **argv)
 	ierr = VecNorm(b, NORM_INFINITY, &norm_b); CHKERRQ(ierr);
 	PetscReal rel_res = norm_r / norm_b;
 
-	if (gi.verbose_level >= VBMedium) {
+	if (gi.verbose_level >= VB_MEDIUM) {
 		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\ttrue relres: %e\n", rel_res); CHKERRQ(ierr);
 	}
 
-	/** Recover the solution for the original matrix A from the solution for the 
-	  symmetrized matrix A. */
-	ierr = VecPointwiseDivide(x, x, right_precond); CHKERRQ(ierr);
-
 	/** Output the solution. */
 	//ierr = VecAXPY(x, 1.0, e0); CHKERRQ(ierr);
+	ierr = VecPointwiseDivide(x, x, right_precond); CHKERRQ(ierr);
 	ierr = output(gi.output_name, x, CF, conjParam, conjSrc, gi); CHKERRQ(ierr);
-	ierr = updateTimeStamp(VBDetail, &ts, "iterative solver", gi); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VB_MEDIUM, &ts, "iterative solver", gi); CHKERRQ(ierr);
 
 	/** Clean up. */
 	ierr = VecDestroy(&x); CHKERRQ(ierr);

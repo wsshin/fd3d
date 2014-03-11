@@ -49,25 +49,11 @@ PetscErrorCode set_double_Fbc_at(PetscScalar *double_Fbc_value, Axis axis, const
 PetscErrorCode set_sfactor_mu_at(PetscScalar *sfactor_mu_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
- * set_dfactor_mu_at
- * -------------
- * Set an element of the vector of d-factors (dy*dz/dx, dz*dx/dy, dx*dy/dz) for mu.
- */
-PetscErrorCode set_dfactor_mu_at(PetscScalar *dfactor_mu_value, Axis axis, const PetscInt ind[], GridInfo *gi);
-
-/**
  * set_sfactor_eps_at
  * -------------
  * Set an element of the vector of s-factors for eps.
  */
 PetscErrorCode set_sfactor_eps_at(PetscScalar *sfactor_eps_value, Axis axis, const PetscInt ind[], GridInfo *gi);
-
-/**
- * set_dfactor_eps_at
- * -------------
- * Set an element of the vector of d-factors (dy*dz/dx, dz*dx/dy, dx*dy/dz) for eps.
- */
-PetscErrorCode set_dfactor_eps_at(PetscScalar *dfactor_eps_value, Axis axis, const PetscInt ind[], GridInfo *gi);
 
 /**
  * sqrtVec

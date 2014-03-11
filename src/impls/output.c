@@ -1,7 +1,6 @@
 #include <assert.h>
 #include "output.h"
 #include "vec.h"
-#include "assert.h"
 
 #undef __FUNCT__
 #define __FUNCT__ "output"
@@ -33,10 +32,10 @@ PetscErrorCode output(char *output_name, const Vec x, const Mat CF, const Vec co
 	ierr = PetscStrcpy(e_file, output_name_prefixed); CHKERRQ(ierr);
 	ierr = PetscStrcat(e_file, e_extension); CHKERRQ(ierr);
 
-	Vec y;  // H field vector if x_type == Etype
+	Vec y;  // H field vector if x_type == FIELD_E
 	ierr = VecDuplicate(gi.vecTemp, &y); CHKERRQ(ierr);
 	ierr = VecCopy(conjSrc, y); CHKERRQ(ierr);
-	if (gi.x_type==Etype) {
+	if (gi.x_type==FIELD_E) {
 		ierr = MatMultAdd(CF, x, y, y); CHKERRQ(ierr);
 		ierr = VecScale(y, -1.0/PETSC_i/gi.omega); CHKERRQ(ierr);
 	} else {
@@ -54,11 +53,11 @@ PetscErrorCode output(char *output_name, const Vec x, const Mat CF, const Vec co
 	/** Write the E-field file. */
 	ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD, e_file, FILE_MODE_WRITE, &viewer); CHKERRQ(ierr);
 	ierr = PetscViewerHDF5PushGroup(viewer, "/");
-	if (gi.x_type==Etype) {
+	if (gi.x_type==FIELD_E) {
 		ierr = PetscObjectSetName((PetscObject) x, "E"); CHKERRQ(ierr);
 		ierr = VecView(x, viewer); CHKERRQ(ierr);
 	} else {
-		assert(gi.x_type==Htype);
+		assert(gi.x_type==FIELD_H);
 		ierr = PetscObjectSetName((PetscObject) y, "E"); CHKERRQ(ierr);
 		ierr = VecView(y, viewer); CHKERRQ(ierr);
 	}
@@ -67,11 +66,11 @@ PetscErrorCode output(char *output_name, const Vec x, const Mat CF, const Vec co
 	/** Write the H-field file. */
 	ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD, h_file, FILE_MODE_WRITE, &viewer); CHKERRQ(ierr);
 	ierr = PetscViewerHDF5PushGroup(viewer, "/");
-	if (gi.x_type==Etype) {
+	if (gi.x_type==FIELD_E) {
 		ierr = PetscObjectSetName((PetscObject) y, "H"); CHKERRQ(ierr);
 		ierr = VecView(y, viewer); CHKERRQ(ierr);
 	} else {
-		assert(gi.x_type==Htype);
+		assert(gi.x_type==FIELD_H);
 		ierr = PetscObjectSetName((PetscObject) x, "H"); CHKERRQ(ierr);
 		ierr = VecView(x, viewer); CHKERRQ(ierr);
 	}
@@ -89,7 +88,7 @@ PetscErrorCode output(char *output_name, const Vec x, const Mat CF, const Vec co
  * ------
  * Output the left and right singular vectors.
  */
-PetscErrorCode output_singular(char *output_name, const Vec u, const Vec v)
+PetscErrorCode output_singular(const char *output_name, const Vec u, const Vec v)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -281,7 +280,7 @@ PetscErrorCode monitor_relres(KSP ksp, PetscInt n, PetscReal norm_r, void *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "monitorRelres"
-PetscErrorCode monitorRelres(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat CF, const Vec conjParam, const Vec conjSrc, GridInfo *gi)
+PetscErrorCode monitorRelres(const VBType vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat CF, const Vec conjParam, const Vec conjSrc, GridInfo *gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -339,7 +338,7 @@ PetscErrorCode monitorRelres(const VerboseLevel vl, const Vec x, const Vec right
 
 #undef __FUNCT__
 #define __FUNCT__ "monitorRelerr"
-PetscErrorCode monitorRelerr(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat CF, const Vec conjParam, const Vec conjSrc, GridInfo *gi)
+PetscErrorCode monitorRelerr(const VBType vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat CF, const Vec conjParam, const Vec conjSrc, GridInfo *gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -361,7 +360,7 @@ PetscErrorCode monitorRelerr(const VerboseLevel vl, const Vec x, const Vec right
 
 #undef __FUNCT__
 #define __FUNCT__ "monitorSnapshot"
-PetscErrorCode monitorSnapshot(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat CF, const Vec conjParam, const Vec conjSrc, GridInfo *gi)
+PetscErrorCode monitorSnapshot(const VBType vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat CF, const Vec conjParam, const Vec conjSrc, GridInfo *gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
@@ -386,7 +385,7 @@ PetscErrorCode monitorSnapshot(const VerboseLevel vl, const Vec x, const Vec rig
 
 #undef __FUNCT__
 #define __FUNCT__ "monitorAll"
-PetscErrorCode monitorAll(const VerboseLevel vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat CF, const Vec conjParam, const Vec conjSrc, GridInfo *gi)
+PetscErrorCode monitorAll(const VBType vl, const Vec x, const Vec right_precond, const PetscInt num_iter, const PetscReal rel_res, const Mat CF, const Vec conjParam, const Vec conjSrc, GridInfo *gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;

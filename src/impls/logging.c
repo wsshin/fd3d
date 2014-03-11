@@ -25,7 +25,7 @@ PetscErrorCode initTimeStamp(TimeStamp *ts)
  * ---------------
  * Update the time stamp, and print it.
  */
-PetscErrorCode updateTimeStamp(const VerboseLevel vl, TimeStamp *ts, const char *event_description, const GridInfo gi)
+PetscErrorCode updateTimeStamp(const VBType vl, TimeStamp *ts, const char *event_description, const GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;

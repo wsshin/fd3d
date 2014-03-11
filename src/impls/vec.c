@@ -107,14 +107,14 @@ PetscErrorCode set_mask_prim_at(PetscScalar *mask_prim_value, Axis axis, const P
 	*mask_prim_value = 1.0;
 	Axis u = (Axis)((axis+1) % Naxis);
 	if (ind[u]==0) {
-		if ((gi->ge==Prim && gi->bc[u]==PEC) || (gi->ge==Dual && gi->bc[u]==PMC)) {
+		if ((gi->ge==GRID_PRIMARY && gi->bc[u]==PEC) || (gi->ge==GRID_DUAL && gi->bc[u]==PMC)) {
 			*mask_prim_value = 0.0;
 		}
 	}
 
 	u = (Axis)((axis+2) % Naxis);
 	if (ind[u]==0) {
-		if ((gi->ge==Prim && gi->bc[u]==PEC) || (gi->ge==Dual && gi->bc[u]==PMC)) {
+		if ((gi->ge==GRID_PRIMARY && gi->bc[u]==PEC) || (gi->ge==GRID_DUAL && gi->bc[u]==PMC)) {
 			*mask_prim_value = 0.0;
 		}
 	}
@@ -135,7 +135,7 @@ PetscErrorCode set_mask_dual_at(PetscScalar *mask_dual_value, Axis axis, const P
 
 	*mask_dual_value = 1.0;
 	if (ind[axis]==0) {
-		if ((gi->ge==Prim && gi->bc[axis]==PEC) || (gi->ge==Dual && gi->bc[axis]==PMC)) {
+		if ((gi->ge==GRID_PRIMARY && gi->bc[axis]==PEC) || (gi->ge==GRID_DUAL && gi->bc[axis]==PMC)) {
 			*mask_dual_value = 0.0;
 		}
 	}
@@ -166,23 +166,23 @@ PetscErrorCode set_double_Fbc_at(PetscScalar *double_Fbc_value, Axis axis, const
 
 	BC bc;
 
-	if (gi->x_type==Etype && gi->ge==Prim) {
+	if (gi->x_type==FIELD_E && gi->ge==GRID_PRIMARY) {
 		bc = PMC;
-	} else if (gi->x_type==Etype && gi->ge==Dual) {
+	} else if (gi->x_type==FIELD_E && gi->ge==GRID_DUAL) {
 		bc = PEC;
-	} else if (gi->x_type==Htype && gi->ge==Dual) {
+	} else if (gi->x_type==FIELD_H && gi->ge==GRID_DUAL) {
 		bc = PEC;
 	} else {
-		assert(gi->x_type==Htype && gi->ge==Prim);
+		assert(gi->x_type==FIELD_H && gi->ge==GRID_PRIMARY);
 		bc = PMC;
 	}
 
-	if ((gi->x_type==Etype && gi->ge==Dual) || (gi->x_type==Htype && gi->ge==Prim)) {
+	if ((gi->x_type==FIELD_E && gi->ge==GRID_DUAL) || (gi->x_type==FIELD_H && gi->ge==GRID_PRIMARY)) {
 		if (ind0==0 && gi->bc[axis0]==bc) {
 			*double_Fbc_value *= 2.0;
 		}
 	} else {
-		assert((gi->x_type==Etype && gi->ge==Prim) || (gi->x_type==Htype && gi->ge==Dual));
+		assert((gi->x_type==FIELD_E && gi->ge==GRID_PRIMARY) || (gi->x_type==FIELD_H && gi->ge==GRID_DUAL));
 		if (gi->bc[axis1]==bc && ind1==0) {
 			*double_Fbc_value *= 2.0;
 		}
@@ -211,7 +211,7 @@ PetscErrorCode set_sfactor_mu_at(PetscScalar *sfactor_mu_value, Axis axis, const
 	Axis axis2 = (Axis)((axis+2) % Naxis);
 
 	GridType ge = gi->ge;
-	GridType gm = (GridType)((ge+1) % Ngt);
+	GridType gm = (GridType)((ge+1) % Ngrid);
 
 	PetscInt ind0 = ind[axis0];
 	PetscInt ind1 = ind[axis1];
@@ -220,35 +220,6 @@ PetscErrorCode set_sfactor_mu_at(PetscScalar *sfactor_mu_value, Axis axis, const
 	/** When w = x, y, z, mu_w is defined at Hw points.  Therefore mu_w is at the 
 	  dual grid point in w axis, and at primary grid points in the other two axes. */
 	*sfactor_mu_value = gi->s_factor[axis1][gm][ind1] * gi->s_factor[axis2][gm][ind2] / gi->s_factor[axis0][ge][ind0];
-
-	PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "set_dfactor_mu_at"
-/**
- * set_dfactor_mu_at
- * -------------
- * Set an element of the vector of d-factors (dy*dz/dx, dz*dx/dy, dx*dy/dz) for mu.
- */
-PetscErrorCode set_dfactor_mu_at(PetscScalar *dfactor_mu_value, Axis axis, const PetscInt ind[], GridInfo *gi)
-{
-	PetscFunctionBegin;
-
-	Axis axis0 = axis;
-	Axis axis1 = (Axis)((axis+1) % Naxis);
-	Axis axis2 = (Axis)((axis+2) % Naxis);
-
-	GridType ge = gi->ge;
-	GridType gm = (GridType)((ge+1) % Ngt);
-
-	PetscInt ind0 = ind[axis0];
-	PetscInt ind1 = ind[axis1];
-	PetscInt ind2 = ind[axis2];
-
-	/** When w = x, y, z, mu_w is defined at Hw points.  Therefore mu_w is at the 
-	  dual grid point in w axis, and at primary grid points in the other two axes. */
-	*dfactor_mu_value = gi->dl[axis1][gm][ind1] * gi->dl[axis2][gm][ind2] / gi->dl[axis0][ge][ind0];
 
 	PetscFunctionReturn(0);
 }
@@ -269,7 +240,7 @@ PetscErrorCode set_sfactor_eps_at(PetscScalar *sfactor_eps_value, Axis axis, con
 	Axis axis2 = (Axis)((axis+2) % Naxis);
 
 	GridType ge = gi->ge;
-	GridType gm = (GridType)((ge+1) % Ngt);
+	GridType gm = (GridType)((ge+1) % Ngrid);
 
 	PetscInt ind0 = ind[axis0];
 	PetscInt ind1 = ind[axis1];
@@ -278,35 +249,6 @@ PetscErrorCode set_sfactor_eps_at(PetscScalar *sfactor_eps_value, Axis axis, con
 	/** When w = x, y, z, eps_w is defined at Ew points.  Therefore eps_w is at the 
 	  primary grid point in w axis, and at dual grid points in the other two axes. */
 	*sfactor_eps_value = gi->s_factor[axis1][ge][ind1] * gi->s_factor[axis2][ge][ind2] / gi->s_factor[axis0][gm][ind0];
-
-	PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "set_dfactor_eps_at"
-/**
- * set_dfactor_eps_at
- * -------------
- * Set an element of the vector of d-factors (dy*dz/dx, dz*dx/dy, dx*dy/dz) for eps.
- */
-PetscErrorCode set_dfactor_eps_at(PetscScalar *dfactor_eps_value, Axis axis, const PetscInt ind[], GridInfo *gi)
-{
-	PetscFunctionBegin;
-
-	Axis axis0 = axis;
-	Axis axis1 = (Axis)((axis+1) % Naxis);
-	Axis axis2 = (Axis)((axis+2) % Naxis);
-
-	GridType ge = gi->ge;
-	GridType gm = (GridType)((ge+1) % Ngt);
-
-	PetscInt ind0 = ind[axis0];
-	PetscInt ind1 = ind[axis1];
-	PetscInt ind2 = ind[axis2];
-
-	/** When w = x, y, z, eps_w is defined at Ew points.  Therefore eps_w is at the 
-	  primary grid point in w axis, and at dual grid points in the other two axes. */
-	*dfactor_eps_value = gi->dl[axis1][ge][ind1] * gi->dl[axis2][ge][ind2] / gi->dl[axis0][gm][ind0];
 
 	PetscFunctionReturn(0);
 }
@@ -459,7 +401,7 @@ PetscErrorCode set_dLe_at(PetscScalar *dLe_value, Axis axis, const PetscInt ind[
 
 	Axis axis0 = axis;
 	GridType ge = gi->ge;
-	GridType gm = (GridType)((ge+1) % Ngt);
+	GridType gm = (GridType)((ge+1) % Ngrid);
 	PetscInt ind0 = ind[axis0];
 
 	*dLe_value = gi->dl[axis0][gm][ind0];
@@ -501,7 +443,7 @@ PetscErrorCode set_sfactorLe_at(PetscScalar *sfactorLe_value, Axis axis, const P
 
 	Axis axis0 = axis;
 	GridType ge = gi->ge;
-	GridType gm = (GridType)((ge+1) % Ngt);
+	GridType gm = (GridType)((ge+1) % Ngrid);
 	PetscInt ind0 = ind[axis0];
 
 	*sfactorLe_value = gi->s_factor[axis0][gm][ind0];
@@ -569,7 +511,7 @@ PetscErrorCode set_dSh_at(PetscScalar *dSh_value, Axis axis, const PetscInt ind[
 	Axis axis2 = (Axis)((axis+2) % Naxis);
 
 	GridType ge = gi->ge;
-	GridType gm = (GridType)((ge+1) % Ngt);
+	GridType gm = (GridType)((ge+1) % Ngrid);
 
 	PetscInt ind1 = ind[axis1];
 	PetscInt ind2 = ind[axis2];
@@ -620,7 +562,7 @@ PetscErrorCode set_sfactorSh_at(PetscScalar *sfactorSh_value, Axis axis, const P
 	Axis axis2 = (Axis)((axis+2) % Naxis);
 
 	GridType ge = gi->ge;
-	GridType gm = (GridType)((ge+1) % Ngt);
+	GridType gm = (GridType)((ge+1) % Ngrid);
 
 	PetscInt ind1 = ind[axis1];
 	PetscInt ind2 = ind[axis2];

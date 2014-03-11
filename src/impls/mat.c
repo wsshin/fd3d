@@ -5,12 +5,6 @@
 //ierr = VecView(vec, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
 //ierr = MatView(mat, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
 
-const char * const FieldTypeName[] = {"E", "H"};
-const char * const GridTypeName[] = {"primary", "dual"};
-const char * const PMLTypeName[] = {"SC-PML", "UPML"};
-const char * const PCTypeName[] = {"identity", "s-factor", "eps", "Jacobi"};
-const char * const SYMTypeName[] = {"condition-", "transformation-", "volume-"};
-
 //const char * const KrylovTypeName[] = {"BiCG", "QMR"};
 
 #undef __FUNCT__
@@ -81,7 +75,7 @@ PetscErrorCode setDp(Mat A, Sign s, Axis w, PetscInt i, PetscInt j, PetscInt k, 
 	} else {  // backward difference
 		assert(s == Neg);
 		if (ind == 0) {
-			if ((gi.ge == Prim && gi.bc[v] == PMC) || (gi.ge == Dual && gi.bc[v] == PEC)) {
+			if ((gi.ge == GRID_PRIMARY && gi.bc[v] == PMC) || (gi.ge == GRID_DUAL && gi.bc[v] == PEC)) {
 				dFp[0] *= 2.0;
 			}
 
@@ -116,7 +110,7 @@ PetscErrorCode setDivF(Mat DivF, GridType gtype, GridInfo gi)
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
 
-	Sign s = (Sign) gtype;  // Neg for gtype==Prim, Pos for gtype==Dual
+	Sign s = (Sign) gtype;  // Neg for gtype==GRID_PRIMARY, Pos for gtype==GRID_DUAL
 
 	/** Get corners and widths of Yee's grid included in this proces. */
 	PetscInt ox, oy, oz;  // coordinates of beginning corner of Yee's grid in this process
@@ -159,7 +153,7 @@ PetscErrorCode createDivE(Mat *DivE, GridInfo gi)
 	PetscErrorCode ierr;
 
 	Vec maskE;
-	if (gi.ge == Prim) {
+	if (gi.ge == GRID_PRIMARY) {
 		ierr = createFieldArray(&maskE, set_mask_prim_at, gi);
 	} else {
 		ierr = createFieldArray(&maskE, set_mask_dual_at, gi);
@@ -195,7 +189,7 @@ PetscErrorCode createDivH(Mat *DivH, GridInfo gi)
 	PetscErrorCode ierr;
 
 	Vec maskH;
-	if (gi.ge == Prim) {
+	if (gi.ge == GRID_PRIMARY) {
 		ierr = createFieldArray(&maskH, set_mask_dual_at, gi);
 	} else {
 		ierr = createFieldArray(&maskH, set_mask_prim_at, gi);
@@ -209,7 +203,7 @@ PetscErrorCode createDivH(Mat *DivH, GridInfo gi)
 	ierr = MatSeqAIJSetPreallocation(*DivH, 6, PETSC_NULL); CHKERRQ(ierr);
 	ierr = MatSetLocalToGlobalMapping(*DivH, gi.map, gi.map); CHKERRQ(ierr);
 	ierr = MatSetStencil(*DivH, Naxis, gi.Nlocal_g, gi.start_g, Naxis); CHKERRQ(ierr);
-	ierr = setDivF(*DivH, (GridType)((gi.ge+1) % Ngt), gi); CHKERRQ(ierr);
+	ierr = setDivF(*DivH, (GridType)((gi.ge+1) % Ngrid), gi); CHKERRQ(ierr);
 	ierr = MatAssemblyBegin(*DivH, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 	ierr = MatAssemblyEnd(*DivH, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 
@@ -231,7 +225,7 @@ PetscErrorCode setFGrad(Mat FGrad, GridType gtype, GridInfo gi)
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
 
-	Sign s = (Sign)((gtype+1) % Ngt);  // Pos for gtype==Prim, Neg for gtype==Dual
+	Sign s = (Sign)((gtype+1) % Ngrid);  // Pos for gtype==GRID_PRIMARY, Neg for gtype==GRID_DUAL
 
 	/** Get corners and widths of Yee's grid included in this proces. */
 	PetscInt ox, oy, oz;  // coordinates of beginning corner of Yee's grid in this process
@@ -276,7 +270,7 @@ PetscErrorCode createEGrad(Mat *EGrad, GridInfo gi)
 	PetscErrorCode ierr;
 
 	Vec maskE;
-	if (gi.ge == Prim) {
+	if (gi.ge == GRID_PRIMARY) {
 		ierr = createFieldArray(&maskE, set_mask_prim_at, gi);
 	} else {
 		ierr = createFieldArray(&maskE, set_mask_dual_at, gi);
@@ -312,7 +306,7 @@ PetscErrorCode createHGrad(Mat *HGrad, GridInfo gi)
 	PetscErrorCode ierr;
 
 	Vec maskH;
-	if (gi.ge == Prim) {
+	if (gi.ge == GRID_PRIMARY) {
 		ierr = createFieldArray(&maskH, set_mask_dual_at, gi);
 	} else {
 		ierr = createFieldArray(&maskH, set_mask_prim_at, gi);
@@ -347,7 +341,7 @@ PetscErrorCode setCF(Mat CF, GridType gtype, GridInfo gi)
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
 	
-	Sign s = (Sign)((gtype+1) % Ngt);  // Pos for gtype==Prim, Neg for gtype==Dual
+	Sign s = (Sign)((gtype+1) % Ngrid);  // Pos for gtype==GRID_PRIMARY, Neg for gtype==GRID_DUAL
 
 	/** Get corners and widths of Yee's grid included in this proces. */
 	PetscInt ox, oy, oz;  // coordinates of beginning corner of Yee's grid in this process
@@ -386,7 +380,7 @@ PetscErrorCode createCE(Mat *CE, GridInfo gi)
 	PetscErrorCode ierr;
 
 	Vec maskE, maskH;
-	if (gi.ge == Prim) {
+	if (gi.ge == GRID_PRIMARY) {
 		ierr = createFieldArray(&maskE, set_mask_prim_at, gi);
 		ierr = createFieldArray(&maskH, set_mask_dual_at, gi);
 	} else {
@@ -424,7 +418,7 @@ PetscErrorCode createCH(Mat *CH, GridInfo gi)
 	PetscErrorCode ierr;
 
 	Vec maskE, maskH;
-	if (gi.ge == Prim) {
+	if (gi.ge == GRID_PRIMARY) {
 		ierr = createFieldArray(&maskE, set_mask_prim_at, gi);
 		ierr = createFieldArray(&maskH, set_mask_dual_at, gi);
 	} else {
@@ -440,7 +434,7 @@ PetscErrorCode createCH(Mat *CH, GridInfo gi)
 	ierr = MatSeqAIJSetPreallocation(*CH, 4, PETSC_NULL); CHKERRQ(ierr);
 	ierr = MatSetLocalToGlobalMapping(*CH, gi.map, gi.map); CHKERRQ(ierr);
 	ierr = MatSetStencil(*CH, Naxis, gi.Nlocal_g, gi.start_g, Naxis); CHKERRQ(ierr);
-	ierr = setCF(*CH, (GridType)((gi.ge+1) % Ngt), gi); CHKERRQ(ierr);
+	ierr = setCF(*CH, (GridType)((gi.ge+1) % Ngrid), gi); CHKERRQ(ierr);
 	ierr = MatAssemblyBegin(*CH, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 	ierr = MatAssemblyEnd(*CH, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
 
@@ -540,7 +534,7 @@ Therefore, if Gq==Ey, then Fp==Ex and dr==dx, and so on. */
 	Axis Qq = (Axis)((Pp+1) % Naxis);  // if Pp==Xx, this is Yy
 	Axis Rr = (Axis)((Pp+2) % Naxis);  // if Pp==Xx, this is Zz
 
-	if ((gi.x_type==Etype && gi.ge==Prim) || (gi.x_type==Htype && gi.ge==Dual)) {
+	if ((gi.x_type==FIELD_E && gi.ge==GRID_PRIMARY) || (gi.x_type==FIELD_H && gi.ge==GRID_DUAL)) {
 		/** Set (x,y,z,axis) indices for the output field component Gp. */
 		/** indGp.c is the degree-of-freedom (dof) index; in FD3D used to indicate the direction of 
 		  the field component. */
@@ -934,7 +928,7 @@ PetscErrorCode createGDsym(Mat *GD, GridInfo gi)
 	/** Set up the matrix DivF and FGrad, the divergence on F and gradient operator generating F. */
 	ierr = VecDuplicate(gi.vecTemp, &invNode); CHKERRQ(ierr);
 	ierr = VecPointwiseMult(invNode, epsNode, muNode); CHKERRQ(ierr);
-	if (gi.x_type == Etype) {
+	if (gi.x_type == FIELD_E) {
 		ierr = VecPointwiseMult(invNode, epsNode, invNode); CHKERRQ(ierr);
 		ierr = createDivE(&DivF, gi); CHKERRQ(ierr);
 		ierr = createEGrad(&FGrad, gi); CHKERRQ(ierr);
@@ -1147,388 +1141,157 @@ PetscErrorCode numSymmetrize(Mat A)
 }
 
 /**
- * stretch_d
- * ---------
- * Stretches dx, dy, dz with s-factors.
- * Note that this function can be written to take GridInfo instead of GridInfo* because dl is 
- * a pointer variable; even if GridInfo were used and the argument gi is delivered as a 
- * copy, the pointer value dl is the same as the original, so modifying dl[axis][gt][n] modifies 
- * the original dl elements.
- * However, to make sure that users understand that the contents of gi change in this function, this
- * function is written to take GridInfo*.
+ * stretch_params
+ * --------------
+ * Stretch input parameters.
  */
 #undef __FUNCT__
-#define __FUNCT__ "stretch_d"
-PetscErrorCode stretch_d(GridInfo *gi)
-{
-	PetscFunctionBegin;
-
-	/** Stretch gi.dl by gi.s_factor. */
-	PetscInt axis, gt, n;
-	for (axis = 0; axis < Naxis; ++axis) {
-		for (gt = 0; gt < Ngt; ++gt) {
-			for (n = 0; n < gi->N[axis]; ++n) {
-				gi->dl[axis][gt][n] *= gi->s_factor[axis][gt][n];
-			}
-		}
-	}
-
-	PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "unstretch_d"
-PetscErrorCode unstretch_d(GridInfo *gi)
-{
-	PetscFunctionBegin;
-
-	/** Recover the original gi.dl. */
-	PetscInt axis, gt, n;
-	for (axis = 0; axis < Naxis; ++axis) {
-		for (gt = 0; gt < Ngt; ++gt) {
-			for (n = 0; n < gi->N[axis]; ++n) {
-				gi->dl[axis][gt][n] = gi->dl_orig[axis][gt][n];
-			}
-		}
-	}
-
-	PetscFunctionReturn(0);
-}
-
-/**
- * stretch_s
- * ---------
- * Stretches sx, sy, sz with dx, dy, dz.
- * Note that this function can be written to take GridInfo instead of GridInfo* because s_factor is 
- * a pointer variable; even if GridInfo were used and the argument gi is delivered as a 
- * copy, the pointer value s_factor is the same as the original, so modifying s_factor[axis][gt][n] 
- * modifies the original dl elements.
- * However, to make sure that users understand that the contents of gi change in this function, this
- * function is written to take GridInfo*.
- */
-#undef __FUNCT__
-#define __FUNCT__ "stretch_s"
-PetscErrorCode stretch_s(GridInfo *gi)
-{
-	PetscFunctionBegin;
-
-	/** Stretch gi.s_factor by gi.dl. */
-	PetscInt axis, gt, n;
-	for (axis = 0; axis < Naxis; ++axis) {
-		for (gt = 0; gt < Ngt; ++gt) {
-			for (n = 0; n < gi->N[axis]; ++n) {
-				gi->s_factor[axis][gt][n] *= gi->dl[axis][gt][n];
-
-				/** Below, dl is set to 1.0, whereas s_factor = 1.0 is not performed in stretch_d().
-				This breaks the duality between stretch_d() and stretch_s().  stretch_d() should keep
-				s_factor intact, because even after stretch_d() is used for sym_type == SYMCond or
-				SYMVol, s_factor is used to construct preconditioners.  On the other hand, when
-				sym_type == SYMTr is used, we need to construct the curl operators with dl = 1.0, so
-				we need to perform dl = 1.0 below.  This is OK, because sym_type == SYMTr does not
-				use any preconditioner based on original dl. */
-				gi->dl[axis][gt][n] = 1.0;
-			}
-		}
-	}
-
-	PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "unstretch_s"
-PetscErrorCode unstretch_s(GridInfo *gi)
-{
-	PetscFunctionBegin;
-
-	/** Recover the original gi.s_factor. */
-	PetscInt axis, gt, n;
-	for (axis = 0; axis < Naxis; ++axis) {
-		for (gt = 0; gt < Ngt; ++gt) {
-			for (n = 0; n < gi->N[axis]; ++n) {
-				gi->s_factor[axis][gt][n] = gi->s_factor_orig[axis][gt][n];
-			}
-		}
-	}
-
-	PetscFunctionReturn(0);
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "make_d_one"
-PetscErrorCode make_d_one(GridInfo *gi)
-{
-	PetscFunctionBegin;
-
-	PetscInt axis, gt, n;
-	for (axis = 0; axis < Naxis; ++axis) {
-		for (gt = 0; gt < Ngt; ++gt) {
-			for (n = 0; n < gi->N[axis]; ++n) {
-				gi->dl[axis][gt][n] = 1.0;
-			}
-		}
-	}
-
-	PetscFunctionReturn(0);
-}
-
-/**
- * Modify create_A_and_b() so that the added continuity equation is symmetric.
- */
-#undef __FUNCT__
-#define __FUNCT__ "create_A_and_b4"
-PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec *conjParam, Vec *conjSrc, GridInfo gi, TimeStamp *ts)
+#define __FUNCT__ "stretch_params"
+PetscErrorCode stretch_params(Vec eps, Vec mu, Vec srcJ, Vec srcM, GridInfo gi)
 {
 	PetscFunctionBegin;
 	PetscErrorCode ierr;
 
-	Vec eps, mu, param, paramMask; 
-	Vec srcJ, srcM;
-	Vec inverse;  // store various inverse vectors
-	Vec left_precond, precond;
-	Mat CE, CH;  // curl operators on E and H
-	Mat CG, CGF; 
+	Vec factor;
+	ierr = createFieldArray(&factor, set_sfactor_eps_at, gi); CHKERRQ(ierr);
+	ierr = VecPointwiseMult(eps, eps, factor); CHKERRQ(ierr);
 
-	if (gi.verbose_level >= VBMedium) {
-		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Create matrix for %s on %s grid with %s, preconditioned by %s.\n", FieldTypeName[gi.x_type], GridTypeName[gi.x_type==Etype ? gi.ge:((gi.ge+1)%Ngt)], PMLTypeName[gi.pml_type], PCTypeName[gi.pc_type]); CHKERRQ(ierr);
-		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "The matrix is %s%s, continuity eq %s", (gi.is_symmetric ? SYMTypeName[gi.sym_type]:""), (gi.is_symmetric ? "symmetric":"non-symmetric"), (gi.add_conteq ? "added":"not added")); CHKERRQ(ierr);
+	ierr = createFieldArray(&factor, set_sfactor_mu_at, gi); CHKERRQ(ierr);
+	ierr = VecPointwiseMult(mu, mu, factor); CHKERRQ(ierr);
+
+	ierr = createFieldArray(&factor, set_sfactorSe_at, gi); CHKERRQ(ierr);
+	ierr = VecPointwiseMult(srcJ, srcJ, factor); CHKERRQ(ierr);
+	
+	ierr = createFieldArray(&factor, set_sfactorSh_at, gi); CHKERRQ(ierr);
+	ierr = VecPointwiseMult(srcM, srcM, factor); CHKERRQ(ierr);
+	
+	ierr = VecDestroy(&factor); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+
+/**
+ * print_options
+ * ---------
+ * Print options.
+ */
+#undef __FUNCT__
+#define __FUNCT__ "print_options"
+PetscErrorCode print_options(GridInfo gi)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr;
+
+	if (gi.verbose_level >= VB_MEDIUM) {
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Create matrix with following options:\n"); CHKERRQ(ierr);
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "- field type: %s-field on %s grid\n", FieldTypes[gi.x_type], GridTypes[gi.x_type==FIELD_E ? gi.ge:((gi.ge+1)%Ngrid)]); CHKERRQ(ierr);
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "- cell size type: %s\n", CellTypes[gi.cell_type]); CHKERRQ(ierr);
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "- symmetrization type: %s\n", SymTypes[gi.sym_type]); CHKERRQ(ierr);
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "- preconditioner: %s\n", PrecondTypes[gi.pc_type]); CHKERRQ(ierr);
+		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "- continuity eq: %s", (gi.add_conteq ? "added":"not added\n")); CHKERRQ(ierr);
 		if (gi.add_conteq) {
-			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, " with factor %f", gi.factor_conteq); CHKERRQ(ierr);
+			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, " with factor %f\n", gi.factor_conteq); CHKERRQ(ierr);
 		}
-		ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, ".\n"); CHKERRQ(ierr);
 	}
 
-	ierr = VecDuplicate(gi.vecTemp, &inverse); CHKERRQ(ierr);
+	PetscFunctionReturn(0);
+}
 
-	/** Create input vectors. */
-	ierr = createVecPETSc(&eps, "eps", gi); CHKERRQ(ierr);
-	ierr = updateTimeStamp(VBDetail, ts, "eps vector", gi); CHKERRQ(ierr);
+/**
+ * scale_precond_sym
+ * -----------------
+ * Scale the left and right preconditioners for symmetrization.
+ */
+#undef __FUNCT__
+#define __FUNCT__ "scale_precond_sym"
+PetscErrorCode scale_precond_sym(Vec left, Vec right, GridInfo gi)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr;
 
-	if (gi.has_mu) {
-		ierr = createVecPETSc(&mu, "mu", gi); CHKERRQ(ierr);
+	Vec doubleFbc, a, l;
+
+	ierr = createFieldArray(&doubleFbc, set_double_Fbc_at, gi); CHKERRQ(ierr);
+	if (gi.x_type == FIELD_E) {
+		ierr = createFieldArray(&l, set_dLe_at, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&a, set_dSe_at, gi); CHKERRQ(ierr);
 	} else {
-		ierr = VecDuplicate(gi.vecTemp, &mu); CHKERRQ(ierr);
-		ierr = VecSet(mu, 1.0); CHKERRQ(ierr);
+		assert(gi.x_type == FIELD_H);
+		ierr = createFieldArray(&l, set_dLh_at, gi); CHKERRQ(ierr);
+		ierr = createFieldArray(&a, set_dSh_at, gi); CHKERRQ(ierr);
 	}
-	ierr = updateTimeStamp(VBDetail, ts, "mu vector", gi); CHKERRQ(ierr);
+	ierr = VecPointwiseDivide(l, l, doubleFbc); CHKERRQ(ierr);
 
-	ierr = createVecPETSc(&srcJ, "srcJ", gi); CHKERRQ(ierr);
-	ierr = updateTimeStamp(VBDetail, ts, "J vector", gi); CHKERRQ(ierr);
-
-	ierr = createVecPETSc(&srcM, "srcM", gi); CHKERRQ(ierr);
-	ierr = updateTimeStamp(VBDetail, ts, "M vector", gi); CHKERRQ(ierr);
-
-	/** Stretch gi.dl, gi.s_factor, and material parameters depending on PML and symmetry type. */
-	if (gi.pml_type == SCPML) {
-		ierr = stretch_d(&gi); CHKERRQ(ierr);
-	} else {  // UPML
-		assert(gi.pml_type == UPML); 
-		Vec sfactor;
-
-		if (gi.sym_type == SYMTr) {
-			ierr = stretch_s(&gi); CHKERRQ(ierr);
-		}
-
-		ierr = createFieldArray(&sfactor, set_sfactor_eps_at, gi); CHKERRQ(ierr);
-		ierr = VecPointwiseMult(eps, eps, sfactor); CHKERRQ(ierr);
-
-		ierr = createFieldArray(&sfactor, set_sfactor_mu_at, gi); CHKERRQ(ierr);
-		ierr = VecPointwiseMult(mu, mu, sfactor); CHKERRQ(ierr);
-
-		ierr = VecDestroy(&sfactor); CHKERRQ(ierr);
-	}
-
-	/** Set up the matrix CE, the curl operator on E fields. */
-	ierr = createCE(&CE, gi); CHKERRQ(ierr);
-	ierr = updateTimeStamp(VBDetail, ts, "CE matrix", gi); CHKERRQ(ierr);
-
-	/** Set up the matrix CH, the curl operator on H fields. */
-	ierr = createCH(&CH, gi); CHKERRQ(ierr);
-	ierr = updateTimeStamp(VBDetail, ts, "CH matrix", gi); CHKERRQ(ierr);
-
-	/** Set up the matrix CF, the operator giving G fields from F fields. */
-	ierr = VecDuplicate(gi.vecTemp, &param); CHKERRQ(ierr);
-	ierr = VecDuplicate(gi.vecTemp, &paramMask); CHKERRQ(ierr);
-	ierr = VecDuplicate(gi.vecTemp, conjParam); CHKERRQ(ierr);
-	ierr = VecDuplicate(gi.vecTemp, conjSrc); CHKERRQ(ierr);
-	if (gi.x_type == Etype) {
-		ierr = VecCopy(eps, param); CHKERRQ(ierr);
-		ierr = VecCopy(mu, *conjParam); CHKERRQ(ierr);
-		ierr = VecCopy(srcM, *conjSrc); CHKERRQ(ierr);
-
-		CG = CH;
-		*CF = CE;
-		ierr = VecSet(inverse, 1.0); CHKERRQ(ierr);
-		ierr = VecPointwiseDivide(inverse, inverse, mu); CHKERRQ(ierr);
-	} else {  // Htype
-		assert(gi.x_type == Htype);
-		ierr = VecCopy(mu, param); CHKERRQ(ierr);
-		ierr = VecCopy(eps, *conjParam); CHKERRQ(ierr);
-		ierr = VecCopy(srcJ, *conjSrc); CHKERRQ(ierr);
-
-		CG = CE;
-		*CF = CH;
-		ierr = VecSet(inverse, 1.0); CHKERRQ(ierr);
-		ierr = VecPointwiseDivide(inverse, inverse, eps); CHKERRQ(ierr);
-	}
-	ierr = MatDiagonalScale(CG, PETSC_NULL, inverse); CHKERRQ(ierr);
-	ierr = updateTimeStamp(VBDetail, ts, "CG matrix", gi); CHKERRQ(ierr);
-
-	ierr = VecCopy(param, paramMask); CHKERRQ(ierr);
-	ierr = infMaskVec(paramMask, gi); CHKERRQ(ierr);  // to handle TruePEC objects
-	ierr = maskInf2One(param, gi); CHKERRQ(ierr);  // to handle TruePEC objects
-
-	/** Create the matrix CGF, the curl(mu^-1 curl) operator or curl(eps^-1 curl). */
-	ierr = createCGF(&CGF, CG, *CF, gi); CHKERRQ(ierr);
-	ierr = updateTimeStamp(VBDetail, ts, "CGF matrix", gi); CHKERRQ(ierr);
-
-	/** Create b. */
-	ierr = VecDuplicate(gi.vecTemp, b); CHKERRQ(ierr);
-	if (gi.x_type == Etype) {
-		ierr = VecCopy(srcJ, *b); CHKERRQ(ierr);
-		ierr = VecScale(*b, PETSC_i*gi.omega); CHKERRQ(ierr);
-		ierr = MatMultAdd(CG, srcM, *b, *b); CHKERRQ(ierr);
-		ierr = VecScale(*b, -1.0); CHKERRQ(ierr);
-	} else {
-		ierr = VecCopy(srcM, *b); CHKERRQ(ierr);
-		ierr = VecScale(*b, -PETSC_i*gi.omega); CHKERRQ(ierr);
-		ierr = MatMultAdd(CG, srcJ, *b, *b); CHKERRQ(ierr);
-	}
-	ierr = updateTimeStamp(VBDetail, ts, "b vector", gi); CHKERRQ(ierr);
-
-	if (!gi.add_conteq) {
-		/** Below, isn't *A = CGF the same as A = &CGF?  No.  Remember that A is a return value.  
-		  When this function is called, we do:
-		  Mat B;
-		  ...
-		  ierr = create_XXX_A_YYY(&B, ...); CHKERRQ(ierr);
-		  The intension of this function call is to fill the memory pointed by &B. *A = CGF fulfills 
-		  this intension.
-		  On the other hand, if the below line is A = &CGF, it is nothing but changing the value of 
-		  the pointer variable A from &B to &CGF.  Therefore nothing is returned to B. */
-		*A = CGF;
-	} else {  // currently, add_conteq only works for x_type == Etype
-		ierr = createAtemplate(A, gi); CHKERRQ(ierr);
-		ierr = MatAXPY(*A, 1.0, CGF, SUBSET_NONZERO_PATTERN); CHKERRQ(ierr);
-		ierr = MatDestroy(&CGF); CHKERRQ(ierr);
-
-		/** Create the gradient-divergence operator. */
-		Mat GD;
-		ierr = createGDsym(&GD, gi); CHKERRQ(ierr);
-		ierr = MatDiagonalScale(GD, param, PETSC_NULL); CHKERRQ(ierr);
-		ierr = updateTimeStamp(VBDetail, ts, "GD matrix", gi); CHKERRQ(ierr);
-
-		/** Create b. */
-		Vec b_aug;
-		ierr = VecDuplicate(gi.vecTemp, &b_aug); CHKERRQ(ierr);
-		if (gi.x_type == Etype) {
-			ierr = VecCopy(srcJ, b_aug); CHKERRQ(ierr);  // b_aug = J
-		} else {
-			ierr = VecCopy(srcM, b_aug); CHKERRQ(ierr);  // b_aug = M
-		}
-
-		ierr = VecScale(b_aug, gi.factor_conteq*PETSC_i/gi.omega); CHKERRQ(ierr);  // b_aug = s*(i/omega)*J
-		ierr = MatMultAdd(GD, b_aug, *b, *b); CHKERRQ(ierr);  // b = -i*omega*J + GD * s*(i/omega)*J
-		ierr = VecDestroy(&b_aug); CHKERRQ(ierr);
-		ierr = updateTimeStamp(VBDetail, ts, "b_aug vector", gi); CHKERRQ(ierr);
-
-		ierr = MatDiagonalScale(GD, PETSC_NULL, param); CHKERRQ(ierr);
-		ierr = MatAXPY(*A, gi.factor_conteq, GD, SUBSET_NONZERO_PATTERN); CHKERRQ(ierr);
-		ierr = MatDestroy(&GD); CHKERRQ(ierr);
+	switch(gi.sym_type) {
+		case SYM_1:  // left = (a*l)^-1, right = 1
+			ierr = VecPointwiseDivide(left, left, a); CHKERRQ(ierr);
+			ierr = VecPointwiseDivide(left, left, l); CHKERRQ(ierr);
+			break;
+		case SYM_AL:  // left = 1, right = a*l
+			ierr = VecPointwiseMult(right, right, a); CHKERRQ(ierr);
+			ierr = VecPointwiseMult(right, right, l); CHKERRQ(ierr);
+			break;
+		case SYM_L:  // left = a^-1, right = l
+			ierr = VecPointwiseDivide(left, left, a); CHKERRQ(ierr);
+			ierr = VecPointwiseMult(right, right, l); CHKERRQ(ierr);
+			break;
+		case SYM_A:  // left = l^-1, right = a
+			ierr = VecPointwiseDivide(left, left, l); CHKERRQ(ierr);
+			ierr = VecPointwiseMult(right, right, a); CHKERRQ(ierr);
+			break;
+		case SYM_SQRTAL:  // left = sqrt(a*l)^-1, right = sqrt(a*l)
+			ierr = VecPointwiseMult(a, a, l); CHKERRQ(ierr);
+			ierr = sqrtVec(a, gi); CHKERRQ(ierr);
+			ierr = VecPointwiseDivide(left, left, a); CHKERRQ(ierr);
+			ierr = VecPointwiseMult(right, right, a); CHKERRQ(ierr);
+			break;
+		default:  // should not happen
+			assert(PETSC_FALSE);
 	}
 
-	ierr = MatDiagonalScale(*A, paramMask, paramMask); CHKERRQ(ierr);  // omega^2*mu*eps is not subtracted yet, so the diagonal entries will be nonzero
-	ierr = VecPointwiseMult(*b, paramMask, *b); CHKERRQ(ierr);  // force E = 0 on TruePEC.  comment this line to allow source on TruePEC
+	ierr = VecDestroy(&a); CHKERRQ(ierr);
+	ierr = VecDestroy(&l); CHKERRQ(ierr);
+	ierr = VecDestroy(&doubleFbc); CHKERRQ(ierr);
 
-	if (!gi.solve_eigen) {
-		Vec negW2Param = param;
-		ierr = VecScale(negW2Param, -gi.omega*gi.omega); CHKERRQ(ierr);
-		ierr = MatDiagonalSet(*A, negW2Param, ADD_VALUES); CHKERRQ(ierr);
-	}
-	ierr = updateTimeStamp(VBDetail, ts, "A matrix", gi); CHKERRQ(ierr);
+	PetscFunctionReturn(0);
+}
 
-	/** Create the left and right preconditioner. */
-	/** Set the left preconditioner. */
-	ierr = VecDuplicate(gi.vecTemp, &left_precond); CHKERRQ(ierr);
-	ierr = VecSet(left_precond, 1.0); CHKERRQ(ierr);
+/**
+ * scale_precond_acc
+ * -----------------
+ * Scale the left and right preconditioners for acceleration.
+ */
+#undef __FUNCT__
+#define __FUNCT__ "scale_precond_acc"
+PetscErrorCode scale_precond_acc(Vec left, Vec right, GridInfo gi)
+{
+	PetscFunctionBegin;
+	//PetscErrorCode ierr;
 
-	/** Set the right preconditioner. */
-	ierr = VecDuplicate(gi.vecTemp, right_precond); CHKERRQ(ierr);
-	ierr = VecSet(*right_precond, 1.0); CHKERRQ(ierr);
+	//Vec precond;
 
-	if (gi.is_symmetric) {
-		if (gi.sym_type == SYMCond) {
-			/** original eq: A0 x = b.  The matrix 
-			  diag(1/sqrt(Epec)) diag(sqrt(LS)) A0 diag(1/sqrt(LS)) diag(sqrt(Epec))
-			  is symmetric. */
-
-			/** Calculate the diagonal matrix to be multiplied to the left and right of the 
-			  matrix A for symmetrizing A. */
-			Vec sqrtLS, dS;
-			if (gi.x_type == Etype) {
-				ierr = createFieldArray(&sqrtLS, set_dLe_at, gi); CHKERRQ(ierr);
-				ierr = createFieldArray(&dS, set_dSe_at, gi); CHKERRQ(ierr);
-			} else {
-				assert(gi.x_type == Htype);
-				ierr = createFieldArray(&sqrtLS, set_dLh_at, gi); CHKERRQ(ierr);
-				ierr = createFieldArray(&dS, set_dSh_at, gi); CHKERRQ(ierr);
-			}
-			ierr = VecPointwiseMult(sqrtLS, sqrtLS, dS); CHKERRQ(ierr);
-			ierr = VecDestroy(&dS); CHKERRQ(ierr);
-			ierr = sqrtVec(sqrtLS, gi); CHKERRQ(ierr);
-
-			ierr = VecPointwiseMult(*right_precond, *right_precond, sqrtLS); CHKERRQ(ierr);
-			ierr = VecDestroy(&sqrtLS); CHKERRQ(ierr);
-
-			Vec sqrtDoubleFbc;
-			ierr = createFieldArray(&sqrtDoubleFbc, set_double_Fbc_at, gi); CHKERRQ(ierr);
-			ierr = sqrtVec(sqrtDoubleFbc, gi); CHKERRQ(ierr);
-
-			ierr = VecPointwiseDivide(*right_precond, *right_precond, sqrtDoubleFbc); CHKERRQ(ierr);
-			ierr = VecDestroy(&sqrtDoubleFbc); CHKERRQ(ierr);
-
-			ierr = VecPointwiseDivide(left_precond, left_precond, *right_precond); CHKERRQ(ierr);
-		} else if (gi.sym_type == SYMTr) {
-			/* Because UPML-like formulation makes the matrix already mostly symmetric, we only
-			need to take care of the nonsymmetry due to PEC and PMC boundary conditions. */
-			Vec doubleFbc;
-			ierr = createFieldArray(&doubleFbc, set_double_Fbc_at, gi); CHKERRQ(ierr);
-			ierr = VecPointwiseDivide(*right_precond, *right_precond, doubleFbc); CHKERRQ(ierr);
-			ierr = VecDestroy(&doubleFbc); CHKERRQ(ierr);
-		} else {
-			assert(gi.sym_type == SYMVol);
-
-			/** Calculate the diagonal matrix to be multiplied to the left of the matrix A for 
-			symmetrizing A. */
-			Vec dLS, dS;
-			if (gi.x_type == Etype) {
-				ierr = createFieldArray(&dLS, set_dLe_at, gi); CHKERRQ(ierr);
-				ierr = createFieldArray(&dS, set_dSe_at, gi); CHKERRQ(ierr);
-			} else {
-				assert(gi.x_type == Htype);
-				ierr = createFieldArray(&dLS, set_dLh_at, gi); CHKERRQ(ierr);
-				ierr = createFieldArray(&dS, set_dSh_at, gi); CHKERRQ(ierr);
-			}
-			ierr = VecPointwiseMult(dLS, dLS, dS); CHKERRQ(ierr);
-			ierr = VecDestroy(&dS); CHKERRQ(ierr);
-
-			ierr = VecPointwiseDivide(left_precond, left_precond, dLS); CHKERRQ(ierr);
-			ierr = VecDestroy(&dLS); CHKERRQ(ierr);
-
-			Vec doubleFbc;
-			ierr = createFieldArray(&doubleFbc, set_double_Fbc_at, gi); CHKERRQ(ierr);
-			ierr = VecPointwiseDivide(*right_precond, *right_precond, doubleFbc); CHKERRQ(ierr);
-			ierr = VecDestroy(&doubleFbc); CHKERRQ(ierr);
-		}
+	switch(gi.pc_type) {
+		case PRECOND_1:
+			break;  // do nothing
+		case PRECOND_JACOBI:
+			break;
+		case PRECOND_S:
+			break;
+		case PRECOND_MATPARAM:
+			break;
+		default:  // should not happen
+			assert(PETSC_FALSE);
 	}
 
 	/** Apply the preconditioner. Only one type of preconditioners is applied. */
+/** Old code
 	if (gi.pc_type == PCSfactor) {  
 		Vec sfactorL, sfactorS;
-		if (gi.x_type == Etype) {
+		if (gi.x_type == FIELD_E) {
 			ierr = createFieldArray(&sfactorL, set_sfactorLe_at, gi); CHKERRQ(ierr);
 			ierr = createFieldArray(&sfactorS, set_sfactorSe_at, gi); CHKERRQ(ierr);
 		} else {
-			assert(gi.x_type == Htype);
+			assert(gi.x_type == FIELD_H);
 			ierr = createFieldArray(&sfactorL, set_sfactorLh_at, gi); CHKERRQ(ierr);
 			ierr = createFieldArray(&sfactorS, set_sfactorSh_at, gi); CHKERRQ(ierr);
 		}
@@ -1547,12 +1310,12 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 
 		ierr = VecDestroy(&sfactorL); CHKERRQ(ierr);
 		ierr = VecDestroy(&sfactorS); CHKERRQ(ierr);
-		ierr = updateTimeStamp(VBDetail, ts, "s-factor preconditioner", gi); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VB_DETAIL, ts, "s-factor preconditioner", gi); CHKERRQ(ierr);
 	} else if (gi.pc_type == PCParam) {
-		if (gi.x_type == Etype) {
+		if (gi.x_type == FIELD_E) {
 			ierr = createVecHDF5(&precond, "/eps", gi); CHKERRQ(ierr);
 		} else {
-			assert(gi.x_type == Htype);
+			assert(gi.x_type == FIELD_H);
 			if (gi.has_mu) {
 				ierr = createVecHDF5(&precond, "/mu", gi); CHKERRQ(ierr);
 			} else {
@@ -1568,7 +1331,7 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 			ierr = VecPointwiseMult(*right_precond, *right_precond, precond); CHKERRQ(ierr);
 		}
 		ierr = VecDestroy(&precond); CHKERRQ(ierr);
-		ierr = updateTimeStamp(VBDetail, ts, "eps preconditioner", gi); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VB_DETAIL, ts, "eps preconditioner", gi); CHKERRQ(ierr);
 	} else if (gi.pc_type == PCJacobi) {
 		ierr = VecDuplicate(gi.vecTemp, &precond); CHKERRQ(ierr);
 		ierr = MatGetDiagonal(*A, precond); CHKERRQ(ierr);
@@ -1580,10 +1343,183 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 			ierr = VecPointwiseMult(*right_precond, *right_precond, precond); CHKERRQ(ierr);
 		}
 		ierr = VecDestroy(&precond); CHKERRQ(ierr);
-		ierr = updateTimeStamp(VBDetail, ts, "Jacobi preconditioner", gi); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VB_DETAIL, ts, "Jacobi preconditioner", gi); CHKERRQ(ierr);
 	} else {
 		assert(gi.pc_type == PCIdentity);
 	}
+*/
+
+	PetscFunctionReturn(0);
+}
+
+/**
+ * Modify create_A_and_b() so that the added continuity equation is symmetric.
+ */
+#undef __FUNCT__
+#define __FUNCT__ "create_A_and_b4"
+PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec *conjParam, Vec *conjSrc, GridInfo gi, TimeStamp *ts)
+{
+	PetscFunctionBegin;
+	PetscErrorCode ierr;
+
+	Vec eps, mu, param, paramMask; 
+	Vec srcJ, srcM;
+	Vec inverse;  // store various inverse vectors
+	Vec left_precond;
+	Mat CE, CH;  // curl operators on E and H
+	Mat CG, CGF; 
+
+	ierr = print_options(gi); CHKERRQ(ierr);
+
+	ierr = VecDuplicate(gi.vecTemp, &inverse); CHKERRQ(ierr);
+
+	/** Create vectors for input parameters. */
+	ierr = createVecPETSc(&eps, "eps", gi); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VB_DETAIL, ts, "eps vector", gi); CHKERRQ(ierr);
+
+	if (gi.has_mu) {
+		ierr = createVecPETSc(&mu, "mu", gi); CHKERRQ(ierr);
+	} else {
+		ierr = VecDuplicate(gi.vecTemp, &mu); CHKERRQ(ierr);
+		ierr = VecSet(mu, 1.0); CHKERRQ(ierr);
+	}
+	ierr = updateTimeStamp(VB_DETAIL, ts, "mu vector", gi); CHKERRQ(ierr);
+
+	ierr = createVecPETSc(&srcJ, "srcJ", gi); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VB_DETAIL, ts, "J vector", gi); CHKERRQ(ierr);
+
+	ierr = createVecPETSc(&srcM, "srcM", gi); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VB_DETAIL, ts, "M vector", gi); CHKERRQ(ierr);
+
+	/** Stretch input parameters. */
+	ierr = stretch_params(eps, mu, srcJ, srcM, gi); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VB_DETAIL, ts, "transformation", gi); CHKERRQ(ierr);
+
+	/** Set up the matrix CE, the curl operator on E fields. */
+	ierr = createCE(&CE, gi); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VB_DETAIL, ts, "CE matrix", gi); CHKERRQ(ierr);
+
+	/** Set up the matrix CH, the curl operator on H fields. */
+	ierr = createCH(&CH, gi); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VB_DETAIL, ts, "CH matrix", gi); CHKERRQ(ierr);
+
+	/** Set up the matrix CF, the operator giving G fields from F fields. */
+	ierr = VecDuplicate(gi.vecTemp, &param); CHKERRQ(ierr);
+	ierr = VecDuplicate(gi.vecTemp, &paramMask); CHKERRQ(ierr);
+	ierr = VecDuplicate(gi.vecTemp, conjParam); CHKERRQ(ierr);
+	ierr = VecDuplicate(gi.vecTemp, conjSrc); CHKERRQ(ierr);
+	if (gi.x_type == FIELD_E) {
+		ierr = VecCopy(eps, param); CHKERRQ(ierr);
+		ierr = VecCopy(mu, *conjParam); CHKERRQ(ierr);
+		ierr = VecCopy(srcM, *conjSrc); CHKERRQ(ierr);
+
+		CG = CH;
+		*CF = CE;
+		ierr = VecSet(inverse, 1.0); CHKERRQ(ierr);
+		ierr = VecPointwiseDivide(inverse, inverse, mu); CHKERRQ(ierr);
+	} else {  // FIELD_H
+		assert(gi.x_type == FIELD_H);
+		ierr = VecCopy(mu, param); CHKERRQ(ierr);
+		ierr = VecCopy(eps, *conjParam); CHKERRQ(ierr);
+		ierr = VecCopy(srcJ, *conjSrc); CHKERRQ(ierr);
+
+		CG = CE;
+		*CF = CH;
+		ierr = VecSet(inverse, 1.0); CHKERRQ(ierr);
+		ierr = VecPointwiseDivide(inverse, inverse, eps); CHKERRQ(ierr);
+	}
+	ierr = MatDiagonalScale(CG, PETSC_NULL, inverse); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VB_DETAIL, ts, "CG matrix", gi); CHKERRQ(ierr);
+
+	ierr = VecCopy(param, paramMask); CHKERRQ(ierr);
+	ierr = infMaskVec(paramMask, gi); CHKERRQ(ierr);  // to handle TruePEC objects
+	ierr = maskInf2One(param, gi); CHKERRQ(ierr);  // to handle TruePEC objects
+
+	/** Create the matrix CGF, the curl(mu^-1 curl) operator or curl(eps^-1 curl). */
+	ierr = createCGF(&CGF, CG, *CF, gi); CHKERRQ(ierr);
+	ierr = updateTimeStamp(VB_DETAIL, ts, "CGF matrix", gi); CHKERRQ(ierr);
+
+	/** Create b. */
+	ierr = VecDuplicate(gi.vecTemp, b); CHKERRQ(ierr);
+	if (gi.x_type == FIELD_E) {
+		ierr = VecCopy(srcJ, *b); CHKERRQ(ierr);
+		ierr = VecScale(*b, PETSC_i*gi.omega); CHKERRQ(ierr);
+		ierr = MatMultAdd(CG, srcM, *b, *b); CHKERRQ(ierr);
+		ierr = VecScale(*b, -1.0); CHKERRQ(ierr);
+	} else {
+		ierr = VecCopy(srcM, *b); CHKERRQ(ierr);
+		ierr = VecScale(*b, -PETSC_i*gi.omega); CHKERRQ(ierr);
+		ierr = MatMultAdd(CG, srcJ, *b, *b); CHKERRQ(ierr);
+	}
+	ierr = updateTimeStamp(VB_DETAIL, ts, "b vector", gi); CHKERRQ(ierr);
+
+	if (!gi.add_conteq) {
+		/** Below, isn't *A = CGF the same as A = &CGF?  No.  Remember that A is a return value.  
+		  When this function is called, we do:
+		  Mat B;
+		  ...
+		  ierr = create_XXX_A_YYY(&B, ...); CHKERRQ(ierr);
+		  The intension of this function call is to fill the memory pointed by &B. *A = CGF fulfills 
+		  this intension.
+		  On the other hand, if the below line is A = &CGF, it is nothing but changing the value of 
+		  the pointer variable A from &B to &CGF.  Therefore nothing is returned to B. */
+		*A = CGF;
+	} else {
+		ierr = createAtemplate(A, gi); CHKERRQ(ierr);
+		ierr = MatAXPY(*A, 1.0, CGF, SUBSET_NONZERO_PATTERN); CHKERRQ(ierr);
+		ierr = MatDestroy(&CGF); CHKERRQ(ierr);
+
+		/** Create the gradient-divergence operator. */
+		Mat GD;
+		ierr = createGDsym(&GD, gi); CHKERRQ(ierr);
+		ierr = MatDiagonalScale(GD, param, PETSC_NULL); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VB_DETAIL, ts, "GD matrix", gi); CHKERRQ(ierr);
+
+		/** Create b. */
+		Vec b_aug;
+		ierr = VecDuplicate(gi.vecTemp, &b_aug); CHKERRQ(ierr);
+		if (gi.x_type == FIELD_E) {
+			ierr = VecCopy(srcJ, b_aug); CHKERRQ(ierr);  // b_aug = J
+		} else {
+			ierr = VecCopy(srcM, b_aug); CHKERRQ(ierr);  // b_aug = M
+		}
+
+		ierr = VecScale(b_aug, gi.factor_conteq*PETSC_i/gi.omega); CHKERRQ(ierr);  // b_aug = s*(i/omega)*J
+		ierr = MatMultAdd(GD, b_aug, *b, *b); CHKERRQ(ierr);  // b = -i*omega*J + GD * s*(i/omega)*J
+		ierr = VecDestroy(&b_aug); CHKERRQ(ierr);
+		ierr = updateTimeStamp(VB_DETAIL, ts, "b_aug vector", gi); CHKERRQ(ierr);
+
+		ierr = MatDiagonalScale(GD, PETSC_NULL, param); CHKERRQ(ierr);
+		ierr = MatAXPY(*A, gi.factor_conteq, GD, SUBSET_NONZERO_PATTERN); CHKERRQ(ierr);
+		ierr = MatDestroy(&GD); CHKERRQ(ierr);
+	}
+
+	ierr = MatDiagonalScale(*A, paramMask, paramMask); CHKERRQ(ierr);  // omega^2*mu*eps is not subtracted yet, so the diagonal entries will be nonzero
+	ierr = VecPointwiseMult(*b, paramMask, *b); CHKERRQ(ierr);  // force E = 0 on TruePEC.  comment this line to allow source on TruePEC
+
+	if (!gi.solve_eigen) {
+		Vec negW2Param = param;
+		ierr = VecScale(negW2Param, -gi.omega*gi.omega); CHKERRQ(ierr);
+		ierr = MatDiagonalSet(*A, negW2Param, ADD_VALUES); CHKERRQ(ierr);
+	}
+	ierr = updateTimeStamp(VB_DETAIL, ts, "A matrix", gi); CHKERRQ(ierr);
+
+	/** Create the left and right preconditioner. */
+	/** Initialize the left preconditioner. */
+	ierr = VecDuplicate(gi.vecTemp, &left_precond); CHKERRQ(ierr);
+	ierr = VecSet(left_precond, 1.0); CHKERRQ(ierr);
+
+	/** Initialize the right preconditioner. */
+	ierr = VecDuplicate(gi.vecTemp, right_precond); CHKERRQ(ierr);
+	ierr = VecSet(*right_precond, 1.0); CHKERRQ(ierr);
+
+	/** Set the preconditioners for symmetrization. */
+	if (gi.sym_type != SYM_NON) {
+		ierr = scale_precond_sym(left_precond, *right_precond, gi); CHKERRQ(ierr);
+	}
+
+	/** Apply the preconditioner. Only one type of preconditioners is applied. */
+	//ierr = scale_precond_acc(); CHKERRQ(ierr);  // yet to be implemented
 
 	Vec inv_left, inv_right; 
 	ierr = VecDuplicate(gi.vecTemp, &inv_left); CHKERRQ(ierr);
@@ -1600,10 +1536,21 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 	ierr = VecDestroy(&inv_left); CHKERRQ(ierr);
 	ierr = VecDestroy(&inv_right); CHKERRQ(ierr);
 
-	/** Recover the original dl and s_factor unconditionally; it does not hurt. */
-	ierr = unstretch_d(&gi); CHKERRQ(ierr);
-	ierr = unstretch_s(&gi); CHKERRQ(ierr);
+	/** Scale the right preconditioner and conjParam to untransform the solution fields. */
+	Vec sfactorLe, sfactorLh;
+	ierr = createFieldArray(&sfactorLe, set_sfactorLe_at, gi); CHKERRQ(ierr);
+	ierr = createFieldArray(&sfactorLh, set_sfactorLh_at, gi); CHKERRQ(ierr);
+	if (gi.x_type == FIELD_E) {
+		ierr = VecPointwiseMult(*right_precond, *right_precond, sfactorLe); CHKERRQ(ierr);
+		ierr = VecPointwiseMult(*conjParam, *conjParam, sfactorLh); CHKERRQ(ierr);
+	} else {  // gi.x_type == FIELD_H
+		ierr = VecPointwiseMult(*right_precond, *right_precond, sfactorLh); CHKERRQ(ierr);
+		ierr = VecPointwiseMult(*conjParam, *conjParam, sfactorLe); CHKERRQ(ierr);
+	}
+	ierr = VecDestroy(&sfactorLe); CHKERRQ(ierr);
+	ierr = VecDestroy(&sfactorLh); CHKERRQ(ierr);
 
+	/** Finalize. */
 	ierr = MatDestroy(&CG); CHKERRQ(ierr);
 	ierr = VecDestroy(&mu); CHKERRQ(ierr);
 	ierr = VecDestroy(&eps); CHKERRQ(ierr);
@@ -1616,7 +1563,7 @@ PetscErrorCode create_A_and_b4(Mat *A, Vec *b, Vec *right_precond, Mat *CF, Vec 
 
 	PetscBool flgBloch;
 	ierr = hasBloch(&flgBloch, gi); CHKERRQ(ierr);
-	if (gi.is_symmetric && !flgBloch) {
+	if (gi.sym_type != SYM_NON && !flgBloch) {
 		ierr = numSymmetrize(*A); CHKERRQ(ierr);
 		ierr = MatSetOption(*A, MAT_SYMMETRIC, PETSC_TRUE); CHKERRQ(ierr);
 		ierr = MatSetOption(*A, MAT_HERMITIAN, PETSC_FALSE); CHKERRQ(ierr);

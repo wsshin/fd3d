@@ -22,6 +22,27 @@ PetscErrorCode h5get_data(hid_t inputfile_id, const char *dataset_name, hid_t me
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "init_c"
+/**
+ * init_c
+ * -----------
+ * Construct a complex array initialized with ones.
+ */
+PetscErrorCode init_c(void *pc, const int numelem)
+{
+	PetscFunctionBegin;
+
+	PetscScalar *pC = (PetscScalar *) pc;
+
+	int i;
+	for (i = 0; i < numelem; ++i) {
+		*pC++ = 1.0;
+	}
+
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "ri2c"
 /**
  * ri2c

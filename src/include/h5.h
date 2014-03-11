@@ -13,6 +13,13 @@
 PetscErrorCode h5get_data(hid_t file_id, const char *dataset_name, hid_t mem_type_id, void *buf);
 
 /**
+ * init_c
+ * -----------
+ * Construct a complex array initialized with ones.
+ */
+PetscErrorCode init_c(void *pc, const int numelem);
+
+/**
  * ri2c
  * -----------
  * Construct a complex array from an array with alternating real and imaginary values as elements.
