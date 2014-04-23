@@ -40,19 +40,19 @@ The general workflow to simulate EM wave propagation is described as follows.
 
 3. Extract gzipped input files.
 
-This can be done by:
+	This can be done by:
 
-	gzip -d INPUT_NAME.{eps,srcJ,srcM}.gz
+		gzip -d INPUT_NAME.{eps,srcJ,srcM}.gz
 
-When creating input files, MaxwellFDFD gzips those files (except for a small file `INPUT_NAME.h5`) by default for convenience, because you typically need to upload them to an external LINUX cluster.
+	When creating input files, MaxwellFDFD gzips those files (except for a small file `INPUT_NAME.h5`) by default for convenience, because you typically need to upload them to an external LINUX cluster.
 
 4. Run `fd3d`.  
 
-For a single processor, execute:
+	For a single processor, execute:
 
 	fd3d -i INPUT_NAME
 
-For multiple processors, execute:
+	For multiple processors, execute:
 
 	mpirun -n N fd3d -i INPUT_NAME
 
