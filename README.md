@@ -40,17 +40,24 @@ If you run MaxwellFDFD and FD3D on different machines (e.g., MaxwellFDFD on your
 
 3. Extract gzipped input files.
 
-This can be done by
+This can be done by:
+
 	gzip -d INPUT_NAME.{eps,srcJ,srcM}.gz
+
 When creating input files, MaxwellFDFD gzips those files (except for a small file `INPUT_NAME.h5`) by default for convenience, because you typically need to upload them to an external LINUX cluster.
 
 4. Run `fd3d`.  
 
-For a single processor, execute
+For a single processor, execute:
+
 	fd3d -i INPUT_NAME
-For multiple processors, execute
+
+For multiple processors, execute:
+
 	mpirun -n N fd3d -i INPUT_NAME
+
 where `INPUT_NAME` is the base name of the input files, and `N` is the number of processors.
+
 Instead of running `fd3d` interactively, you can submit a batch job script if your system manages a job queue, e.g. TORQUE Resource Manager.  Refer to the user guide of your system for more detail about writing a batch job script.  Also, see the example batch job script in batchjob/ direrctory.
 
 5. Check the standard output.
