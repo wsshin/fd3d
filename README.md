@@ -26,7 +26,7 @@ The FD3D root directory consists of the following subdirectories:
 
 Workflow
 --------
-The general workflow to simulate EM wave propagation is described as follows.
+The general workflow to simulate EM wave propagation is as follows.
 
 1. Create a project directory.
 
@@ -44,7 +44,7 @@ The general workflow to simulate EM wave propagation is described as follows.
 
 		gzip -d INPUT_NAME.{eps,srcJ,srcM}.gz
 
-	When creating input files, MaxwellFDFD gzips those files (except for a small file `INPUT_NAME.h5`) by default for convenience, because you typically need to upload them to an external LINUX cluster.
+	When creating input files, MaxwellFDFD gzips those files (except for the small file `INPUT_NAME.h5`) by default for convenience, because you typically need to upload them to an external LINUX cluster.
 
 4. Run `fd3d`.  
 
@@ -52,13 +52,13 @@ The general workflow to simulate EM wave propagation is described as follows.
 
 		fd3d -i INPUT_NAME
 
-	For multiple processors, execute:
+	For multiple processors, execute something like:
 
 		mpirun -n N fd3d -i INPUT_NAME
 
-	where `INPUT_NAME` is the base name of the input files, and `N` is the number of processors.
+	where `INPUT_NAME` is the base name of the input files, and `N` is the number of processors.  The command for executing a program on multiple processors may not be `mpirun` on you system; for example, it can be `mpirun_rsh` or `mpiexec`.  See the user guide of your system to find out the exact command.
 
-	Instead of running `fd3d` interactively, you can submit a batch job script if your system manages a job queue, e.g. TORQUE Resource Manager.  Refer to the user guide of your system for more detail about writing a batch job script.  Also, see the example batch job script in batchjob/ direrctory.
+	Instead of running `fd3d` interactively, you can submit a batch job script if your system manages a job queue, e.g. PBS/TORQUE or SLURM.  Refer to the user guide of your system for more detail about writing a batch job script.  Also, see the example batch job script in `$FD3D_ROOT/batchjob/` direrctory.
 
 5. Check the standard output.
 
