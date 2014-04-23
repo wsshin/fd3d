@@ -1,6 +1,9 @@
+FD3D installation instruction
+=============================
+
 System requirements
 -------------------
-- Operating System
+- Operating system
 
 	UNIX clones such as LINUX and OS X.  MS Windows is not supported.
 
@@ -11,8 +14,8 @@ System requirements
 	MaxwellFDFD is a companion MATLAB package to create the input files for FD3D and analyze the solution files.  MaxwellFDFD (and MATLAB) does not have to be installed in the same machine you install FD3D.  In fact, FD3D is typically installed on a LINUX cluster, whereas MaxwellFDFD is installed your local machine, such as your laptop.
 
 
-PETSc installation instruction
-------------------------------
+PETSc installation
+------------------
 1. Download the PETSc library source code from the [PETSc download page](http://www.mcs.anl.gov/petsc/petsc-as/download/index.html).
 
 2. Unarchive the PETSc package, and move it to the directory where you want to install the library.
@@ -69,8 +72,8 @@ PETSc installation instruction
 	If you do not get any error, your PETSc installation is successful.  If you have any problem, you may find a solution at [PETSc Documentation: Installation](http://www.mcs.anl.gov/petsc/petsc-as/documentation/installation.html).
 
 
-FD3D installation instruction
------------------------------
+FD3D installation
+-----------------
 Follow this instruction once you install the PETSc library following the instruction above.
 
 1. Unarchive the FD3D package, and move it to the directory where you want to install the library.
