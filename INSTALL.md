@@ -11,7 +11,7 @@ System requirements
 
 - [MaxwellFDFD](https://github.com/wsshin/maxwellfdfd)
 
-	MaxwellFDFD is a companion MATLAB package to create the input files for FD3D and analyze the solution files.  MaxwellFDFD (and MATLAB) does not have to be installed in the same machine you install FD3D.  In fact, FD3D is typically installed on a LINUX cluster, whereas MaxwellFDFD is installed your local machine, such as your laptop.
+	MaxwellFDFD is a companion MATLAB package to create the input files for FD3D and analyze the solution files.  MaxwellFDFD (and MATLAB) does not have to be installed on the same machine you install FD3D.  In fact, FD3D is typically installed on a LINUX cluster, whereas MaxwellFDFD is installed on your local machine, such as your laptop.
 
 
 How to install PETSc
@@ -24,12 +24,12 @@ How to install PETSc
 
 3. Set up the environment variables `PETSC_DIR` and `PETSC_ARCH`.
 
-	If your LINUX SHELL is `bash`, you can open `.bash_profile` file in your home directory (or create one if there is not), and add the following two lines to the file:
+	If your LINUX SHELL is bash, you can open `.bash_profile` file in your home directory (or create one if there is not), and add the following two lines to the file:
 
 		export PETSC_DIR=YOUR_PETSC_DIRECTORY
 		export PETSC_ARCH=petscfd3d
 
-	where `YOUR_PETSC_DIRECTORY` is where your PETSc package is, e.g., `$HOME/petsc/petsc-X.Y.Z` in Step 2.
+	where `YOUR_PETSC_DIRECTORY` is where your PETSc package exists, e.g., `$HOME/petsc/petsc-X.Y.Z` in Step 2.
 
 4. Make the environment variables effective.
 
@@ -74,7 +74,7 @@ How to install PETSc
 
 How to install FD3D
 -------------------
-Follow this instruction once you install the PETSc library following the instruction above.
+Follow this instruction after you install the PETSc library following the instruction above.
 
 1. Unarchive the FD3D package, and move it to the directory where you want to install the library.
 
@@ -82,9 +82,9 @@ Follow this instruction once you install the PETSc library following the instruc
 
 2.  Assign `FD3D_ROOT` environment variable.
 
-	You have to let FD3D know its install location via an environment variable named `FD3D_ROOT`.  If your LINUX shell is bash, you can open `$HOME/.fd3d` file with your favorite text editor to append:
+	You have to let FD3D know its install location via an environment variable named `FD3D_ROOT`.  If your LINUX shell is bash, you can create `$HOME/.fd3d` file with the following line using your favorite text editor:
 
-		setenv FD3D_ROOT $HOME/fd3d
+		export FD3D_ROOT=$HOME/fd3d
 
 	Then open `$HOME/.bash_profile` file with your favorite text editor to append:
 
@@ -103,9 +103,9 @@ Follow this instruction once you install the PETSc library following the instruc
 
 		cd $FD3D_ROOT/src
 
-	If this does not place you in `$FD3D_ROOT/src/` directory, Step 1, 2 are not done correctly.
+	If this does not place you in `$FD3D_ROOT/src/` directory, it means Step 1, 2 are not done correctly.
 
-	Now, copy `$FD3D_ROOT/src/makefiles/makefile.tmp` file to `$FD3D_ROOT/src/` directory and rename it to makefile by:
+	Now, copy `$FD3D_ROOT/src/makefiles/makefile.tmp` file to `$FD3D_ROOT/src/` directory and rename it to `makefile` by:
 
 		cp makefiles/makefile.tmp makefile
 
