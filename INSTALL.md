@@ -80,7 +80,7 @@ Follow this instruction after you install the PETSc library following the instru
 
 	For example, you can put the unarchived package in your home directory.  Then the contents of the FD3D package will be at `$HOME/fd3d/`.
 
-2.  Assign `FD3D_ROOT` environment variable.
+2.  Define the environment variable `FD3D_ROOT`.
 
 	You have to let FD3D know its install location via an environment variable named `FD3D_ROOT`.  If your LINUX shell is bash, you can create `$HOME/.fd3d` file with the following line using your favorite text editor:
 
