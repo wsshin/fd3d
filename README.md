@@ -13,15 +13,15 @@ This directory will contain executables of the FD3D program and other utilities 
 
 - `batchjob/`
 
-This directory contains an example batch job script that is used in typical LINUX clusters.
+	This directory contains an example batch job script that is used in typical LINUX clusters.
 
 - `src/`
 
-This directory contains the source codes and makefiles to build executables in bin/.
+	This directory contains the source codes and makefiles to build executables in bin/.
 
 - `test/`
 
-This directory contains test input files to verify successful installation of FD3D.
+	This directory contains test input files to verify successful installation of FD3D.
 
 
 Workflow
