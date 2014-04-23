@@ -1,7 +1,7 @@
 SYSTEM REQUIREMENTS
 -------------------
 - Operating System
-UNIX clones such as LINUX and OS X.  MS Windows is not supported.
+	UNIX clones such as LINUX and OS X.  MS Windows is not supported.
 
 - [PETSc](http://www.mcs.anl.gov/petsc)
 
