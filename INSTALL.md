@@ -22,7 +22,7 @@ How to install PETSc
 
 	For example, you can create a directory `petsc` under your home directory and move the package there.  Then, the contents of the PETSc package will be at `$HOME/petsc/petsc-X.Y.Z/`, where `X.Y.Z` is the version number.
 
-3. Set up the environment variables `PETSC_DIR` and `PETSC_ARCH`.
+3. Define the environment variables `PETSC_DIR` and `PETSC_ARCH`.
 
 	If your LINUX SHELL is bash, you can open `.bash_profile` file in your home directory (or create one if there is not), and add the following two lines to the file:
 
