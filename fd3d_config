@@ -6,7 +6,7 @@
 #-fd3d_add_conteq
 -fd3d_pml scpml
 #-fd3d_pml upml
-#-fd3d_symmetric
+-fd3d_symmetric
 -fd3d_krylov bicg
 #-fd3d_krylov qmr
 #-fd3d_use_ksp

@@ -2,20 +2,20 @@
 import sys
 import os
 import re
-from numpy import arange
 from optparse import OptionParser
 
 '''Parse options.'''
-parser = OptionParser(usage='%prog [OPTION] JOB_TEMPLATE FIRST:STEP:LAST\n\nscanjob does:\n- read JOB_TEMPLATE.tmj line-by-line\n- replace $inputname$ in each line with JOB_TEMPLATE_scanvar\n- save the modified lines in JOB_TEMPLATE_scanvar.job file\n- submit the generated job file\n- repeat the process for scanvar=FIRST:STEP:LAST')
+parser = OptionParser(usage='%prog [OPTION] SUBMIT JOB_TEMPLATE FIRST:STEP:LAST\n\nArguments:\n- SUBMIT: batch script submission command (qsub for TORQUE, sbatch for SLURM)\n- JOB_TEMPLATE: template batch job file name excluding the file extension .tmj\n- FIRST, STEP, LAST: integers\n\nscanjob does:\n- read JOB_TEMPLATE.tmj line-by-line\n- replace $inputname$ in each line with JOB_TEMPLATE_scanvar\n- save the modified lines in JOB_TEMPLATE_scanvar.job file\n- submit the generated job file\n- repeat the process for scanvar=FIRST:STEP:LAST')
 (options, args) = parser.parse_args()
 
 '''Specify file name (with .job) in ../job/ directory.'''
-name0 = args[0]
+submit = args[0]
+name0 = args[1]
 ext_tmj = '.tmj'
 ext_job = '.job'
 
 '''Specify frequency range, and step size of interest.'''
-range = args[1].split(':');  # format of range is first:step:last
+range = args[2].split(':')  # format of range is first:step:last
 #first = float(range[0])
 #step = float(range[1])
 #last = float(range[2])
@@ -23,12 +23,11 @@ first = int(range[0])
 step = int(range[1])
 last = int(range[2])
 last += step
-vars = arange(first, last, step).tolist()
 pattern_inputname = re.compile('\$inputname\$')
 #pattern_dp = re.compile('\.')  # decimal point
 
 file_tmj = open(name0 + ext_tmj,'r')
-for var in vars:
+for var in xrange(first, last, step):
 	# Create a job file.
 	#name = name0 + '_' + re.sub(pattern_dp, '_', str(var))
 	name = name0 + '_' + str(var)
@@ -40,5 +39,5 @@ for var in vars:
 		file_job.close()
 
 		# Submit the created job
-		os.system('qsub ' + name + ext_job)
+		os.system(submit + ' ' + name + ext_job)
 file_tmj.close()
