@@ -1,6 +1,6 @@
 FD3D
 ====
-FD3D is a companion program of MaxwellFDFD.  It allows the users of MaxwellFDFD to solve the frequency-domain Maxwell's equations in a large 3D domain.  FD3D uses iterative methods to avoid the large memory requirement of direct methods.
+FD3D is a companion program of [MaxwellFDFD](https://github.com/wsshin/maxwellfdfd).  It allows the users of MaxwellFDFD to solve the frequency-domain Maxwell's equations in a large 3D domain.  FD3D uses iterative methods to avoid the large memory requirement of direct methods.
 
 See `INSTALL.md` for installation instruction.
 
