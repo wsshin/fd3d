@@ -5,9 +5,9 @@ System requirements
 -------------------
 - Operating system
 
-	UNIX clones such as LINUX and OS X.  MS Windows is not supported.
+	UNIX-like operating system (e.g., LINUX or OS X)
 
-- [PETSc](http://www.mcs.anl.gov/petsc)
+- [PETSc](http://www.mcs.anl.gov/petsc) (version 3.5 or higher)
 
 - [MaxwellFDFD](https://github.com/wsshin/maxwellfdfd)
 
