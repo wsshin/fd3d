@@ -91,9 +91,9 @@ ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\tN = [%d, %d, %d]\n", gi->N[Xx],
 		for (gt = 0; gt < Ngt; ++gt) {
 			PetscReal temp[gi->N[axis] * Nri];
 			ierr = PetscMalloc3(
-					gi->N[axis], PetscScalar, &gi->dl[axis][gt],
-					gi->N[axis], PetscScalar, &gi->s_factor[axis][gt],
-					gi->N[axis], PetscScalar, &gi->dl_orig[axis][gt]); CHKERRQ(ierr);
+					gi->N[axis], &gi->dl[axis][gt],
+					gi->N[axis], &gi->s_factor[axis][gt],
+					gi->N[axis], &gi->dl_orig[axis][gt]); CHKERRQ(ierr);
 
 			ierr = PetscStrcpy(datasetname, "/d"); CHKERRQ(ierr);
 			ierr = append_char(datasetname, w[axis]); CHKERRQ(ierr);
@@ -113,7 +113,7 @@ ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\tN = [%d, %d, %d]\n", gi->N[Xx],
 	gi->Ntot = gi->N[Xx] * gi->N[Yy] * gi->N[Zz] * Naxis;  // total # of unknowns
 
 	/** Create distributed array (DA) representing Yee's grid, and set it in grid info. */
-	const DMDABoundaryType ptype = DMDA_BOUNDARY_PERIODIC;
+	const DMBoundaryType ptype = DM_BOUNDARY_PERIODIC;
 	const DMDAStencilType stype = DMDA_STENCIL_BOX;
 	const PetscInt dof = Naxis;
 	const PetscInt swidth = 1;

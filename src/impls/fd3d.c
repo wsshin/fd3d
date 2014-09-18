@@ -205,7 +205,7 @@ PetscErrorCode main(int argc, char **argv)
 		/** Create a KSP object. */
 		KSP ksp;
 		ierr = KSPCreate(PETSC_COMM_WORLD, &ksp); CHKERRQ(ierr);
-		ierr = KSPSetOperators(ksp, A, A, SAME_NONZERO_PATTERN); CHKERRQ(ierr);
+		ierr = KSPSetOperators(ksp, A, A); CHKERRQ(ierr);
 		ierr = KSPSetTolerances(ksp, gi.tol, 0.0, PETSC_MAX_REAL, gi.max_iter); CHKERRQ(ierr);
 
 		/** Allow a nonzero initial guess. */
