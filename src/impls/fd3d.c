@@ -320,7 +320,7 @@ PetscErrorCode main(int argc, char **argv)
 			PetscInt nmax;
 			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "Calculate smax.\n"); CHKERRQ(ierr);
 
-			for (nmax = 1; PetscAbsScalar((smax-sprev)/smax) > 1e-11; ++nmax) {
+			for (nmax = 1; PetscAbsReal((smax-sprev)/smax) > 1e-11; ++nmax) {
 				sprev = smax;
 
 				ierr = multAandAdag(A, Adag, b1, b2, x1, x2); CHKERRQ(ierr);
@@ -340,7 +340,7 @@ PetscErrorCode main(int argc, char **argv)
 			smin_inv = 1.0;
 			PetscInt nmin;
 			ierr = PetscFPrintf(PETSC_COMM_WORLD, stdout, "\nCalculate smin.\n"); CHKERRQ(ierr);
-			for (nmin = 1; PetscAbsScalar((smin_inv-sprev)/smin_inv) > 1e-11; ++nmin) {
+			for (nmin = 1; PetscAbsReal((smin_inv-sprev)/smin_inv) > 1e-11; ++nmin) {
 				sprev = smin_inv;
 
 				ierr = bicgAandAdag(A, Adag, x1, x2, b1, b2, right_precond, CF, conjParam, conjSrc, gi); CHKERRQ(ierr);
