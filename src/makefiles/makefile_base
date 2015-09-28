@@ -17,8 +17,8 @@ else
 	CPPFLAGS = -g ${CPPFLAGS_CUSTOM} -I${INC}
 endif
 
-include ${PETSC_DIR}/conf/variables
-include ${PETSC_DIR}/conf/rules
+include ${PETSC_DIR}/lib/petsc/conf/variables
+include ${PETSC_DIR}/lib/petsc/conf/rules
 
 h5.o: ${INC}/h5.h
 mat.o: ${INC}/mat.h
